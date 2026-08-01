@@ -1,0 +1,123 @@
+# Digital Signage - local development / self-hosted stack
+#
+# Typical local dev workflow:
+#   docker compose up -d postgres minio redis backend
+#   (then run `npm run dev` inside admin-frontend and player-app)
+#
+# Full containerized stack (closer to production, e.g. to sanity-check images
+# before deploying to Coolify):
+#   docker compose --profile full up -d --build
+#
+# All configuration comes from environment variables (see ../.env.example) —
+# no domain or secret is hardcoded here.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-signage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-signage}
+      POSTGRES_DB: ${POSTGRES_DB:-signage}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-signage}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET:-minioadmin}
+    ports:
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ../backend-api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:5174}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-signage}:${POSTGRES_PASSWORD:-signage}@postgres:5432/${POSTGRES_DB:-signage}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      S3_ENDPOINT: minio
+      S3_PORT: 9000
+      S3_USE_SSL: 'false'
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_KEY: ${S3_KEY:-minioadmin}
+      S3_SECRET: ${S3_SECRET:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-signage-media}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-http://localhost:9000}
+    ports:
+      - '${BACKEND_PORT:-3000}:3000'
+
+  admin-frontend:
+    profiles: ['full']
+    build:
+      context: ../admin-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${API_URL:-http://localhost:3000/api}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      API_URL: ${API_URL:-http://localhost:3000/api}
+    ports:
+      - '${ADMIN_PORT:-8081}:8080'
+
+  player-app:
+    profiles: ['full']
+    build:
+      context: ../player-app
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${API_URL:-http://localhost:3000/api}
+        VITE_WS_URL: ${WS_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      API_URL: ${API_URL:-http://localhost:3000/api}
+      WS_URL: ${WS_URL:-http://localhost:3000}
+    ports:
+      - '${PLAYER_PORT:-8082}:8080'
+
+volumes:
+  postgres_data:
+  minio_data:
+  redis_data:

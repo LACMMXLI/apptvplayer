@@ -1,0 +1,131 @@
+// Digital Signage - Database schema
+// Run `npm run prisma:migrate` locally to create/update migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum DeviceStatus {
+  PENDING
+  ONLINE
+  OFFLINE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(EDITOR)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Branch {
+  id        String    @id @default(uuid())
+  name      String
+  address   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  devices   Device[]
+  playlists Playlist[]
+
+  @@map("branches")
+}
+
+model MediaFile {
+  id            String    @id @default(uuid())
+  fileName      String
+  originalName  String
+  mimeType      String
+  type          MediaType
+  sizeBytes     Int
+  bucket        String
+  objectKey     String
+  url           String
+  width         Int?
+  height        Int?
+  durationSecs  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  slides        Slide[]
+
+  @@map("media_files")
+}
+
+model Slide {
+  id             String   @id @default(uuid())
+  title          String
+  mediaId        String?
+  media          MediaFile? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  durationSecs   Int      @default(10)
+  backgroundColor String  @default("#000000")
+  layout         Json?    // free-form layout config for the visual slide editor
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  playlistItems  PlaylistItem[]
+
+  @@map("slides")
+}
+
+model Playlist {
+  id        String   @id @default(uuid())
+  name      String
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items     PlaylistItem[]
+  devices   Device[]
+
+  @@map("playlists")
+}
+
+model PlaylistItem {
+  id         String   @id @default(uuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  slideId    String
+  slide      Slide    @relation(fields: [slideId], references: [id], onDelete: Cascade)
+  order      Int
+  createdAt  DateTime @default(now())
+
+  @@index([playlistId, order])
+  @@map("playlist_items")
+}
+
+model Device {
+  id           String       @id @default(uuid())
+  name         String
+  pairingCode  String       @unique
+  deviceKey    String       @unique // long-lived secret token used by the player after pairing
+  status       DeviceStatus @default(PENDING)
+  branchId     String?
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  playlistId   String?
+  playlist     Playlist?    @relation(fields: [playlistId], references: [id], onDelete: SetNull)
+  lastSeenAt   DateTime?
+  pairedAt     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("devices")
+}

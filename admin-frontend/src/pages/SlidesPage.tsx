@@ -1,0 +1,174 @@
+import { useEffect, useState } from 'react';
+import type { MediaFile, Slide } from '../types';
+import { mediaApi, slidesApi } from '../api/endpoints';
+
+const emptyForm = {
+  id: null as string | null,
+  title: '',
+  mediaId: '' as string,
+  durationSecs: 10,
+  backgroundColor: '#000000',
+};
+
+type FormState = typeof emptyForm;
+
+export default function SlidesPage() {
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [media, setMedia] = useState<MediaFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  function refresh() {
+    setLoading(true);
+    Promise.all([slidesApi.list(), mediaApi.list()])
+      .then(([s, m]) => {
+        setSlides(s);
+        setMedia(m);
+      })
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(refresh, []);
+
+  function editSlide(slide: Slide) {
+    setForm({
+      id: slide.id,
+      title: slide.title,
+      mediaId: slide.mediaId ?? '',
+      durationSecs: slide.durationSecs,
+      backgroundColor: slide.backgroundColor,
+    });
+  }
+
+  function newSlide() {
+    setForm(emptyForm);
+  }
+
+  async function onSave() {
+    setSaving(true);
+    try {
+      const payload = {
+        title: form.title,
+        mediaId: form.mediaId || undefined,
+        durationSecs: form.durationSecs,
+        backgroundColor: form.backgroundColor,
+      };
+      if (form.id) {
+        await slidesApi.update(form.id, payload);
+      } else {
+        await slidesApi.create(payload);
+      }
+      newSlide();
+      refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onDelete(id: string) {
+    if (!confirm('¿Eliminar este slide?')) return;
+    await slidesApi.remove(id);
+    if (form.id === id) newSlide();
+    refresh();
+  }
+
+  const previewMedia = media.find((m) => m.id === form.mediaId);
+
+  return (
+    <div>
+      <h1 className="page-title">Slides</h1>
+      <div className="slide-editor-layout">
+        <div className="slide-list-panel">
+          <button className="btn-primary" onClick={newSlide}>
+            + Nuevo slide
+          </button>
+          {loading ? (
+            <p>Cargando…</p>
+          ) : (
+            <ul className="slide-list">
+              {slides.map((slide) => (
+                <li
+                  key={slide.id}
+                  className={`slide-list-item${form.id === slide.id ? ' active' : ''}`}
+                  onClick={() => editSlide(slide)}
+                >
+                  <span>{slide.title}</span>
+                  <button
+                    className="btn-danger-ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(slide.id);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="slide-form-panel">
+          <h2>{form.id ? 'Editar slide' : 'Nuevo slide'}</h2>
+          <label>
+            Título
+            <input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </label>
+          <label>
+            Media
+            <select
+              value={form.mediaId}
+              onChange={(e) => setForm({ ...form, mediaId: e.target.value })}
+            >
+              <option value="">— Sin media (solo color/título) —</option>
+              {media.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.originalName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Duración (segundos)
+            <input
+              type="number"
+              min={1}
+              value={form.durationSecs}
+              onChange={(e) => setForm({ ...form, durationSecs: Number(e.target.value) })}
+            />
+          </label>
+          <label>
+            Color de fondo
+            <input
+              type="color"
+              value={form.backgroundColor}
+              onChange={(e) => setForm({ ...form, backgroundColor: e.target.value })}
+            />
+          </label>
+          <button className="btn-primary" onClick={onSave} disabled={saving || !form.title}>
+            {saving ? 'Guardando…' : 'Guardar slide'}
+          </button>
+        </div>
+
+        <div className="slide-preview-panel">
+          <h2>Vista previa</h2>
+          <div className="slide-preview" style={{ backgroundColor: form.backgroundColor }}>
+            {previewMedia ? (
+              previewMedia.type === 'IMAGE' ? (
+                <img src={previewMedia.url} alt="" />
+              ) : (
+                <video src={previewMedia.url} muted autoPlay loop />
+              )
+            ) : (
+              <span className="slide-preview-title">{form.title || 'Título del slide'}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
