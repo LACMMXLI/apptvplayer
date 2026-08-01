@@ -16,112 +16,93 @@ sólo se cambian variables de entorno.
 
 ## 0. Antes de empezar
 
-- Apunta los registros DNS (tipo `A`) de `admin`, `api`, `tv` (y `storage` si
-  vas a exponer MinIO) hacia la IP del servidor donde corre Coolify.
+- Apunta los registros DNS (tipo `A`, o un wildcard `*`) de `admin`, `api`,
+  `tv` (y `storage` si vas a exponer MinIO) hacia la IP del servidor donde
+  corre Coolify.
 - Sube este repositorio a un remoto Git (GitHub/GitLab/Gitea) accesible desde
-  Coolify, o usa el despliegue "Docker Compose" apuntando a tu propio Git.
+  Coolify.
 
 ## 1. Crear el proyecto
 
 1. En Coolify: **Projects → New Project** → nómbralo `digital-signage`.
 2. Dentro del proyecto, crea un **Environment** (ej. `production`).
 
-## 2. Base de datos (PostgreSQL)
+## 2. Desplegar el stack con Docker Compose
 
-1. **+ New Resource → Database → PostgreSQL**.
-2. Asigna nombre `signage-postgres`, usuario/password/db a tu gusto.
-3. Coolify expone un `DATABASE_URL` interno (o arma el string con el host
-   interno del servicio, ej. `signage-postgres`, puerto `5432`). Guarda ese
-   connection string — lo usarás como `DATABASE_URL` del backend.
-4. No expongas el puerto de Postgres públicamente; dentro de la red interna
-   de Coolify el backend lo alcanza por nombre de servicio.
+Los 4 servicios (Postgres, MinIO, backend, admin-frontend, player-app) están
+definidos en [`docker/docker-compose.coolify.yml`](docker/docker-compose.coolify.yml)
+— cada uno sigue siendo un contenedor independiente (escalable/reiniciable
+por separado), pero se despliegan juntos como un solo recurso versionado en
+Git, en vez de crearse uno por uno a mano en la UI.
 
-## 3. Almacenamiento (MinIO o S3/R2)
-
-**Opción A — MinIO auto-hospedado en Coolify:**
-
-1. **+ New Resource → Docker Image** (`minio/minio:latest`) o usa el template
-   de MinIO si Coolify lo ofrece en tu versión.
-2. Comando: `server /data --console-address ":9001"`.
-3. Variables: `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`.
-4. Monta un volumen persistente en `/data`.
-5. (Opcional) expón el puerto 9000 con dominio propio
-   (`storage.midominio.com`) si quieres servir el media directo desde MinIO;
-   si no, sólo necesita ser alcanzable internamente por el backend.
-
-**Opción B — Cloudflare R2 / cualquier S3 compatible:**
-
-No despliegues nada: sólo usa las credenciales del proveedor en las variables
-`S3_*` del backend (ver paso 4). El código no cambia — `StorageService` habla
-el protocolo S3 estándar.
-
-## 4. Backend API
-
-1. **+ New Resource → Application → Docker Compose / Dockerfile**, apuntando
-   al repo y a la carpeta `backend-api` (usa `backend-api/Dockerfile` como
-   build pack "Dockerfile").
-2. Puerto interno del contenedor: `3000`.
-3. Dominio: `api.midominio.com` → Coolify emite el certificado SSL
-   automáticamente (Let's Encrypt vía el proxy Traefik integrado).
-4. Variables de entorno (Coolify → tu app → **Environment Variables**):
+1. **+ New Resource → Public Repository** (o Private Repository si el repo no
+   es público) → pega la URL del repo, rama `main`.
+2. En "Build Pack" selecciona **Docker Compose**.
+3. En "Docker Compose Location" pon `docker/docker-compose.coolify.yml`.
+4. Coolify detecta los 5 servicios del archivo y crea un recurso con una
+   sub-tarjeta de configuración por servicio.
+5. Ve a **Environment Variables** del recurso y define (ver
+   [`docker/.env.coolify.example`](docker/.env.coolify.example) como
+   referencia):
 
    ```
-   PORT=3000
-   DATABASE_URL=postgresql://<user>:<pass>@signage-postgres:5432/<db>?schema=public
+   POSTGRES_USER=signage
+   POSTGRES_PASSWORD=<genera un valor aleatorio fuerte>
+   POSTGRES_DB=signage
+
+   S3_KEY=<access key para MinIO>
+   S3_SECRET=<genera un valor aleatorio fuerte>
+   S3_REGION=us-east-1
+   S3_BUCKET=signage-media
+   S3_PUBLIC_URL=https://storage-signage.midominio.com
+
    JWT_SECRET=<genera un secreto largo y aleatorio>
    JWT_EXPIRES_IN=7d
    CORS_ORIGINS=https://admin.midominio.com,https://tv.midominio.com
-   S3_ENDPOINT=<host interno de minio o el de tu proveedor S3>
-   S3_PORT=9000
-   S3_USE_SSL=false        # true si tu endpoint S3 usa https
-   S3_REGION=us-east-1
-   S3_KEY=<access key>
-   S3_SECRET=<secret key>
-   S3_BUCKET=signage-media
-   S3_PUBLIC_URL=https://storage.midominio.com   # o la URL pública de tu proveedor
+
+   API_URL=https://api.midominio.com/api
+   WS_URL=https://api.midominio.com
    ```
 
-5. Deploy. El contenedor corre `prisma migrate deploy` automáticamente al
-   iniciar (ver `docker-entrypoint.sh`), así que las migraciones quedan
-   aplicadas en cada release.
-6. Corre el seed una sola vez (opcional, para datos de ejemplo) desde la
-   terminal del contenedor en Coolify:
+   > Si vas a usar Cloudflare R2 u otro S3 externo en vez de MinIO, quita el
+   > servicio `minio` del compose (o simplemente no lo uses) y en su lugar
+   > apunta `S3_*` a las credenciales de tu proveedor — `StorageService` habla
+   > el protocolo S3 estándar sin cambios de código.
+
+6. **Deploy**. Coolify construye las 5 imágenes (usa los `Dockerfile` de cada
+   carpeta) y las levanta en la misma red interna del proyecto — se
+   descubren entre sí por el nombre del servicio (`postgres`, `minio`,
+   `backend`). El backend corre `prisma migrate deploy` automáticamente al
+   iniciar.
+7. Asigna un **Domain** a cada servicio que necesita ser público, desde la
+   tarjeta de ese servicio dentro del recurso (Configuration → Domains):
+
+   | Servicio | Dominio | Puerto interno |
+   | --- | --- | --- |
+   | `backend` | `api.midominio.com` | `3000` |
+   | `admin-frontend` | `admin.midominio.com` | `8080` |
+   | `player-app` | `tv.midominio.com` | `8080` |
+   | `minio` | `storage.midominio.com` (opcional) | `9000` |
+
+   Coolify emite el certificado SSL automáticamente (Let's Encrypt vía el
+   proxy Traefik integrado) para cada dominio asignado. Postgres no necesita
+   dominio — sólo lo alcanza el backend por red interna.
+8. (Opcional) corre el seed de datos de ejemplo desde la terminal del
+   contenedor `backend` en Coolify:
 
    ```bash
    npm run seed
    ```
 
-## 5. Admin Frontend
+En cada TV, abre un navegador en modo kiosk apuntando a
+`https://tv.midominio.com` (ej. Chromium con `--kiosk --noerrdialogs
+--disable-infobars --incognito`).
 
-1. **+ New Resource → Application → Dockerfile**, carpeta `admin-frontend`.
-2. Puerto interno del contenedor: `8080`.
-3. Dominio: `admin.midominio.com` con SSL automático.
-4. Variable de entorno:
-
-   ```
-   API_URL=https://api.midominio.com/api
-   ```
-
-   (Se inyecta en runtime vía `docker-entrypoint.sh` → `config.js`, no hace
-   falta reconstruir la imagen si luego cambias de dominio.)
-
-5. Deploy.
-
-## 6. Player App
-
-1. **+ New Resource → Application → Dockerfile**, carpeta `player-app`.
-2. Puerto interno del contenedor: `8080`.
-3. Dominio: `tv.midominio.com` con SSL automático.
-4. Variables de entorno:
-
-   ```
-   API_URL=https://api.midominio.com/api
-   WS_URL=https://api.midominio.com
-   ```
-
-5. Deploy. En cada TV, abre un navegador en modo kiosk apuntando a
-   `https://tv.midominio.com` (ej. Chromium con `--kiosk --noerrdialogs
-   --disable-infobars --incognito`).
+> **Alternativa:** si prefieres crear cada servicio como un recurso separado
+> en la UI de Coolify (una Database de PostgreSQL nativa de Coolify + 3
+> Applications con Dockerfile) en vez de un solo stack Docker Compose, el
+> resultado final es equivalente — usa los mismos `Dockerfile` de cada
+> carpeta y las mismas variables de entorno listadas arriba.
 
 ## 7. Redes y proxy inverso
 
