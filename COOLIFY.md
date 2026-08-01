@@ -72,8 +72,10 @@ Git, en vez de crearse uno por uno a mano en la UI.
 6. **Deploy**. Coolify construye las 5 imágenes (usa los `Dockerfile` de cada
    carpeta) y las levanta en la misma red interna del proyecto — se
    descubren entre sí por el nombre del servicio (`postgres`, `minio`,
-   `backend`). El backend corre `prisma migrate deploy` automáticamente al
-   iniciar.
+   `backend`). El backend sincroniza el schema con `prisma db push`
+   automáticamente al iniciar (no hay todavía un historial de migraciones
+   committeado — genera uno localmente con `npm run prisma:migrate` contra
+   una base real cuando quieras pasar a `prisma migrate deploy`).
 7. Asigna un **Domain** a cada servicio que necesita ser público, desde la
    tarjeta de ese servicio dentro del recurso (Configuration → Domains):
 
