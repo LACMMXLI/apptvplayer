@@ -45,7 +45,7 @@ services:
 
   backend:
     build:
-      context: ../backend-api
+      context: backend-api
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
@@ -72,7 +72,7 @@ services:
 
   admin-frontend:
     build:
-      context: ../admin-frontend
+      context: admin-frontend
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${API_URL}
@@ -86,7 +86,7 @@ services:
 
   player-app:
     build:
-      context: ../player-app
+      context: player-app
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${API_URL}
