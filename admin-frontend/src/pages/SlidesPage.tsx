@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { MediaFile, Slide } from '../types';
+import type { MediaFile, Slide, SlideEffect } from '../types';
+import { SLIDE_EFFECT_OPTIONS } from '../types';
 import { mediaApi, slidesApi } from '../api/endpoints';
 
 const emptyForm = {
@@ -8,9 +9,19 @@ const emptyForm = {
   mediaId: '' as string,
   durationSecs: 10,
   backgroundColor: '#000000',
+  entranceEffect: 'FADE' as SlideEffect,
+  exitEffect: 'FADE' as SlideEffect,
 };
 
 type FormState = typeof emptyForm;
+
+const ENTRANCE_ANIMATION: Record<SlideEffect, string | null> = {
+  NONE: null,
+  FADE: 'anim-fade-in',
+  ZOOM_IN: 'anim-zoom-in-enter',
+  ZOOM_OUT: 'anim-zoom-out-enter',
+  ROTATE: 'anim-rotate-enter',
+};
 
 export default function SlidesPage() {
   const [slides, setSlides] = useState<Slide[]>([]);
@@ -18,6 +29,7 @@ export default function SlidesPage() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
 
   function refresh() {
     setLoading(true);
@@ -38,11 +50,15 @@ export default function SlidesPage() {
       mediaId: slide.mediaId ?? '',
       durationSecs: slide.durationSecs,
       backgroundColor: slide.backgroundColor,
+      entranceEffect: slide.entranceEffect,
+      exitEffect: slide.exitEffect,
     });
+    setPreviewKey((k) => k + 1);
   }
 
   function newSlide() {
     setForm(emptyForm);
+    setPreviewKey((k) => k + 1);
   }
 
   async function onSave() {
@@ -53,6 +69,8 @@ export default function SlidesPage() {
         mediaId: form.mediaId || undefined,
         durationSecs: form.durationSecs,
         backgroundColor: form.backgroundColor,
+        entranceEffect: form.entranceEffect,
+        exitEffect: form.exitEffect,
       };
       if (form.id) {
         await slidesApi.update(form.id, payload);
@@ -74,6 +92,7 @@ export default function SlidesPage() {
   }
 
   const previewMedia = media.find((m) => m.id === form.mediaId);
+  const previewAnimation = ENTRANCE_ANIMATION[form.entranceEffect];
 
   return (
     <div>
@@ -122,7 +141,10 @@ export default function SlidesPage() {
             Media
             <select
               value={form.mediaId}
-              onChange={(e) => setForm({ ...form, mediaId: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, mediaId: e.target.value });
+                setPreviewKey((k) => k + 1);
+              }}
             >
               <option value="">— Sin media (solo color/título) —</option>
               {media.map((m) => (
@@ -149,23 +171,66 @@ export default function SlidesPage() {
               onChange={(e) => setForm({ ...form, backgroundColor: e.target.value })}
             />
           </label>
+          <label>
+            Animación de entrada
+            <select
+              value={form.entranceEffect}
+              onChange={(e) => {
+                setForm({ ...form, entranceEffect: e.target.value as SlideEffect });
+                setPreviewKey((k) => k + 1);
+              }}
+            >
+              {SLIDE_EFFECT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Animación de salida
+            <select
+              value={form.exitEffect}
+              onChange={(e) => setForm({ ...form, exitEffect: e.target.value as SlideEffect })}
+            >
+              {SLIDE_EFFECT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button className="btn-primary" onClick={onSave} disabled={saving || !form.title}>
             {saving ? 'Guardando…' : 'Guardar slide'}
           </button>
         </div>
 
         <div className="slide-preview-panel">
-          <h2>Vista previa</h2>
-          <div className="slide-preview" style={{ backgroundColor: form.backgroundColor }}>
-            {previewMedia ? (
-              previewMedia.type === 'IMAGE' ? (
-                <img src={previewMedia.url} alt="" />
+          <div className="slide-preview-header">
+            <h2>Vista previa</h2>
+            <button className="btn-ghost-small" onClick={() => setPreviewKey((k) => k + 1)}>
+              ▶ Repetir animación
+            </button>
+          </div>
+          <div className="slide-preview-stage">
+            <div
+              key={previewKey}
+              className="slide-preview"
+              style={{
+                backgroundColor: form.backgroundColor,
+                animation: previewAnimation ? `${previewAnimation} 700ms ease both` : undefined,
+              }}
+            >
+              {previewMedia ? (
+                previewMedia.type === 'IMAGE' ? (
+                  <img src={previewMedia.url} alt="" />
+                ) : (
+                  <video src={previewMedia.url} muted autoPlay loop />
+                )
               ) : (
-                <video src={previewMedia.url} muted autoPlay loop />
-              )
-            ) : (
-              <span className="slide-preview-title">{form.title || 'Título del slide'}</span>
-            )}
+                <span className="slide-preview-title">{form.title || 'Título del slide'}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>

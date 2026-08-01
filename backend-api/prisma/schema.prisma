@@ -26,6 +26,14 @@ enum DeviceStatus {
   OFFLINE
 }
 
+enum SlideEffect {
+  NONE
+  FADE
+  ZOOM_IN
+  ZOOM_OUT
+  ROTATE
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -77,6 +85,8 @@ model Slide {
   media          MediaFile? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
   durationSecs   Int      @default(10)
   backgroundColor String  @default("#000000")
+  entranceEffect SlideEffect @default(FADE)
+  exitEffect     SlideEffect @default(FADE)
   layout         Json?    // free-form layout config for the visual slide editor
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

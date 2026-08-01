@@ -5,11 +5,15 @@ export interface MediaFile {
   mimeType: string;
 }
 
+export type SlideEffect = 'NONE' | 'FADE' | 'ZOOM_IN' | 'ZOOM_OUT' | 'ROTATE';
+
 export interface Slide {
   id: string;
   title: string;
   durationSecs: number;
   backgroundColor: string;
+  entranceEffect: SlideEffect;
+  exitEffect: SlideEffect;
   media: MediaFile | null;
 }
 

@@ -1,4 +1,5 @@
-import { IsHexColor, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { SlideEffect } from '@prisma/client';
+import { IsEnum, IsHexColor, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateSlideDto {
   @IsString()
@@ -16,6 +17,14 @@ export class CreateSlideDto {
   @IsOptional()
   @IsHexColor()
   backgroundColor?: string;
+
+  @IsOptional()
+  @IsEnum(SlideEffect)
+  entranceEffect?: SlideEffect;
+
+  @IsOptional()
+  @IsEnum(SlideEffect)
+  exitEffect?: SlideEffect;
 
   @IsOptional()
   @IsObject()
@@ -39,6 +48,14 @@ export class UpdateSlideDto {
   @IsOptional()
   @IsHexColor()
   backgroundColor?: string;
+
+  @IsOptional()
+  @IsEnum(SlideEffect)
+  entranceEffect?: SlideEffect;
+
+  @IsOptional()
+  @IsEnum(SlideEffect)
+  exitEffect?: SlideEffect;
 
   @IsOptional()
   @IsObject()
