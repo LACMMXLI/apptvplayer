@@ -21,6 +21,12 @@ const ENTRANCE_ANIMATION: Record<SlideEffect, string | null> = {
   ZOOM_IN: 'anim-zoom-in-enter',
   ZOOM_OUT: 'anim-zoom-out-enter',
   ROTATE: 'anim-rotate-enter',
+  SLIDE_LEFT: 'anim-slide-left-enter',
+  SLIDE_RIGHT: 'anim-slide-right-enter',
+  FLIP: 'anim-flip-enter',
+  BLUR: 'anim-blur-enter',
+  KEN_BURNS: 'anim-ken-burns-pan',
+  BOUNCE: 'anim-bounce-enter',
 };
 
 export default function SlidesPage() {
@@ -93,6 +99,7 @@ export default function SlidesPage() {
 
   const previewMedia = media.find((m) => m.id === form.mediaId);
   const previewAnimation = ENTRANCE_ANIMATION[form.entranceEffect];
+  const previewDurationMs = form.entranceEffect === 'KEN_BURNS' ? 2600 : 700;
 
   return (
     <div>
@@ -218,7 +225,7 @@ export default function SlidesPage() {
               className="slide-preview"
               style={{
                 backgroundColor: form.backgroundColor,
-                animation: previewAnimation ? `${previewAnimation} 700ms ease both` : undefined,
+                animation: previewAnimation ? `${previewAnimation} ${previewDurationMs}ms ease both` : undefined,
               }}
             >
               {previewMedia ? (

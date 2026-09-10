@@ -21,7 +21,18 @@ export interface MediaFile {
   createdAt: string;
 }
 
-export type SlideEffect = 'NONE' | 'FADE' | 'ZOOM_IN' | 'ZOOM_OUT' | 'ROTATE';
+export type SlideEffect =
+  | 'NONE'
+  | 'FADE'
+  | 'ZOOM_IN'
+  | 'ZOOM_OUT'
+  | 'ROTATE'
+  | 'SLIDE_LEFT'
+  | 'SLIDE_RIGHT'
+  | 'FLIP'
+  | 'BLUR'
+  | 'KEN_BURNS'
+  | 'BOUNCE';
 
 export const SLIDE_EFFECT_OPTIONS: { value: SlideEffect; label: string }[] = [
   { value: 'NONE', label: 'Sin animación' },
@@ -29,6 +40,12 @@ export const SLIDE_EFFECT_OPTIONS: { value: SlideEffect; label: string }[] = [
   { value: 'ZOOM_IN', label: 'Zoom in' },
   { value: 'ZOOM_OUT', label: 'Zoom out' },
   { value: 'ROTATE', label: 'Rotación' },
+  { value: 'SLIDE_LEFT', label: 'Deslizar desde la derecha' },
+  { value: 'SLIDE_RIGHT', label: 'Deslizar desde la izquierda' },
+  { value: 'FLIP', label: 'Volteo 3D (flip)' },
+  { value: 'BLUR', label: 'Desenfoque (blur)' },
+  { value: 'KEN_BURNS', label: 'Ken Burns (paneo lento)' },
+  { value: 'BOUNCE', label: 'Rebote (bounce)' },
 ];
 
 export interface Slide {

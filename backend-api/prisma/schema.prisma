@@ -32,6 +32,12 @@ enum SlideEffect {
   ZOOM_IN
   ZOOM_OUT
   ROTATE
+  SLIDE_LEFT
+  SLIDE_RIGHT
+  FLIP
+  BLUR
+  KEN_BURNS
+  BOUNCE
 }
 
 model User {

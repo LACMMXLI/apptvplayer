@@ -1,22 +1,26 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/media', label: 'Media' },
-  { to: '/slides', label: 'Slides' },
-  { to: '/playlists', label: 'Playlists' },
-  { to: '/devices', label: 'Dispositivos' },
-  { to: '/branches', label: 'Sucursales' },
+  { to: '/', label: 'Dashboard', end: true, icon: '📊' },
+  { to: '/media', label: 'Media', icon: '🖼️' },
+  { to: '/slides', label: 'Slides', icon: '🎬' },
+  { to: '/playlists', label: 'Playlists', icon: '🗂️' },
+  { to: '/devices', label: 'Dispositivos', icon: '📺' },
+  { to: '/branches', label: 'Sucursales', icon: '🏬' },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
 
   return (
     <div className="layout">
       <aside className="sidebar">
-        <div className="brand">Digital Signage</div>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          Digital Signage
+        </div>
         <nav>
           {navItems.map((item) => (
             <NavLink
@@ -25,6 +29,9 @@ export default function Layout() {
               end={item.end}
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
             >
+              <span className="nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
               {item.label}
             </NavLink>
           ))}
@@ -40,7 +47,9 @@ export default function Layout() {
         </div>
       </aside>
       <main className="content">
-        <Outlet />
+        <div key={location.pathname} className="page-transition">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

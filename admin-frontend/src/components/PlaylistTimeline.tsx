@@ -82,6 +82,8 @@ export default function PlaylistTimeline({ items, onReorder, onDurationCommit, o
   }
 
   const totalSecs = items.reduce((sum, item) => sum + (liveDurations[item.id] ?? item.slide.durationSecs), 0);
+  const RULER_STEP_SECS = 5;
+  const rulerTicks = Math.max(1, Math.ceil(totalSecs / RULER_STEP_SECS));
 
   return (
     <div className="timeline-container">
@@ -89,15 +91,32 @@ export default function PlaylistTimeline({ items, onReorder, onDurationCommit, o
         Duración total: {Math.floor(totalSecs / 60)}m {totalSecs % 60}s · {items.length} slides
       </div>
       <div className="timeline-wrapper">
+        {items.length > 0 && (
+          <div className="timeline-ruler">
+            {Array.from({ length: rulerTicks }).map((_, i) => (
+              <span
+                key={i}
+                className="timeline-ruler-tick"
+                style={{ width: RULER_STEP_SECS * PX_PER_SEC }}
+              >
+                {i * RULER_STEP_SECS}s
+              </span>
+            ))}
+          </div>
+        )}
         <div className="timeline-track">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const duration = liveDurations[item.id] ?? item.slide.durationSecs;
             const media = item.slide.media;
             return (
               <div
                 key={item.id}
                 className={`timeline-block${dragId === item.id ? ' dragging' : ''}`}
-                style={{ width: blockWidth(duration), backgroundColor: item.slide.backgroundColor }}
+                style={{
+                  width: blockWidth(duration),
+                  backgroundColor: item.slide.backgroundColor,
+                  animationDelay: `${Math.min(index, 12) * 35}ms`,
+                }}
                 draggable
                 onDragStart={() => onDragStart(item.id)}
                 onDragOver={onDragOver}
