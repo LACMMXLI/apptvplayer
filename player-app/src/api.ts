@@ -10,6 +10,15 @@ const API_URL =
   window.__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const CREDENTIALS_KEY = 'signage.device.credentials';
 
+/**
+ * Thrown when the backend rejects the device's stored credentials (401).
+ * This means the device record is gone or the key no longer matches —
+ * e.g. it was deleted/reset server-side — and retrying with the same
+ * credentials will never succeed. Callers should clear credentials and
+ * re-pair instead of retrying indefinitely.
+ */
+export class DeviceAuthError extends Error {}
+
 export function getStoredCredentials(): DeviceCredentials | null {
   const raw = localStorage.getItem(CREDENTIALS_KEY);
   if (!raw) return null;
@@ -36,6 +45,9 @@ async function deviceRequest(path: string, deviceKey: string, init: RequestInit 
       'x-device-key': deviceKey,
     },
   });
+  if (res.status === 401) {
+    throw new DeviceAuthError(`Rejected credentials: ${path}`);
+  }
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status} ${path}`);
   }

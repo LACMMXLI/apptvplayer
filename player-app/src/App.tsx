@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DeviceCredentials, Playlist } from './types';
 import {
+  DeviceAuthError,
+  clearCredentials,
   fetchPlaylist,
   getPairingStatus,
   getStoredCredentials,
@@ -26,6 +28,22 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resettingRef = useRef(false);
+
+  /**
+   * The backend rejected our device credentials outright (401) — the device
+   * record was likely deleted or reset server-side. Retrying with the same
+   * deviceId/deviceKey would just loop forever, so wipe them and reload to
+   * go through pairing again with a brand-new device identity.
+   */
+  function resetAndRePair() {
+    if (resettingRef.current) return;
+    resettingRef.current = true;
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    clearCredentials();
+    window.location.reload();
+  }
 
   // Best-effort fullscreen kiosk mode. Most kiosk deployments launch the
   // browser itself with --kiosk, this is a fallback for regular browsers.
@@ -54,7 +72,8 @@ export default function App() {
       } else {
         setPlaylist(null);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DeviceAuthError) return resetAndRePair();
       setOffline(true);
       const cached = getCachedPlaylist();
       if (cached) setPlaylist(cached);
@@ -81,7 +100,8 @@ export default function App() {
         connectRealtime(creds);
         startHeartbeat(creds);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DeviceAuthError) return resetAndRePair();
       // Backend unreachable at boot — fall back to any cached playlist so
       // the screen keeps showing content instead of a blank page.
       const cached = getCachedPlaylist();
@@ -107,7 +127,8 @@ export default function App() {
           connectRealtime(creds);
           startHeartbeat(creds);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DeviceAuthError) return resetAndRePair();
         setOffline(true);
       }
     }, POLL_INTERVAL_MS);
@@ -123,7 +144,10 @@ export default function App() {
   function startHeartbeat(creds: DeviceCredentials) {
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     heartbeatRef.current = setInterval(() => {
-      sendHeartbeat(creds).catch(() => setOffline(true));
+      sendHeartbeat(creds).catch((err) => {
+        if (err instanceof DeviceAuthError) return resetAndRePair();
+        setOffline(true);
+      });
     }, HEARTBEAT_INTERVAL_MS);
   }
 
