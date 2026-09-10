@@ -252,6 +252,78 @@ body {
   100% { transform: scale(1.18) translate(-2%, -2%); }
 }
 
+/* Continuous decorative overlays layered on top of the current slide */
+.slide-overlay-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.overlay-flash {
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 60%);
+  mix-blend-mode: screen;
+}
+@keyframes anim-overlay-flash {
+  0%, 82% { opacity: 0; }
+  84% { opacity: 0.9; }
+  87% { opacity: 0.15; }
+  90% { opacity: 0.8; }
+  94%, 100% { opacity: 0; }
+}
+
+.overlay-shine-sweep {
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.55) 50%, transparent 58%);
+  background-size: 250% 100%;
+  mix-blend-mode: screen;
+}
+@keyframes anim-overlay-shine {
+  0% { background-position: 140% 0; opacity: 0; }
+  8% { opacity: 1; }
+  35% { background-position: -40% 0; opacity: 1; }
+  45%, 100% { opacity: 0; background-position: -40% 0; }
+}
+
+.overlay-glow-pulse {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 200, 120, 0.55), transparent 65%);
+  mix-blend-mode: screen;
+}
+@keyframes anim-overlay-glow {
+  0%, 100% { opacity: 0.15; transform: scale(0.92); }
+  50% { opacity: 0.55; transform: scale(1.08); }
+}
+
+.overlay-vignette-pulse {
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.75) 100%);
+}
+@keyframes anim-overlay-vignette {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+.overlay-flicker {
+  background: rgba(255, 255, 255, 0.08);
+  mix-blend-mode: overlay;
+}
+@keyframes anim-overlay-flicker {
+  0% { opacity: 0.2; }
+  25% { opacity: 0.55; }
+  50% { opacity: 0.12; }
+  75% { opacity: 0.4; }
+  100% { opacity: 0.2; }
+}
+
+.overlay-light-leak {
+  background: radial-gradient(ellipse 60% 80% at 20% 20%, rgba(255, 150, 80, 0.55), transparent 60%),
+    radial-gradient(ellipse 50% 70% at 85% 75%, rgba(255, 90, 150, 0.4), transparent 65%);
+  mix-blend-mode: screen;
+}
+@keyframes anim-overlay-light-leak {
+  0% { opacity: 0.25; transform: translate(-10%, -6%) scale(1); }
+  50% { opacity: 0.65; transform: translate(6%, 4%) scale(1.15); }
+  100% { opacity: 0.25; transform: translate(-10%, -6%) scale(1); }
+}
+
 .offline-badge {
   position: absolute;
   top: 0.75rem;

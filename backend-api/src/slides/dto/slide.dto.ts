@@ -1,5 +1,5 @@
-import { SlideEffect } from '@prisma/client';
-import { IsEnum, IsHexColor, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import { OverlayEffect, SlideEffect } from '@prisma/client';
+import { IsEnum, IsHexColor, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CreateSlideDto {
   @IsString()
@@ -25,6 +25,22 @@ export class CreateSlideDto {
   @IsOptional()
   @IsEnum(SlideEffect)
   exitEffect?: SlideEffect;
+
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  entranceDurationMs?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  exitDurationMs?: number;
+
+  @IsOptional()
+  @IsEnum(OverlayEffect)
+  overlayEffect?: OverlayEffect;
 
   @IsOptional()
   @IsObject()
@@ -56,6 +72,22 @@ export class UpdateSlideDto {
   @IsOptional()
   @IsEnum(SlideEffect)
   exitEffect?: SlideEffect;
+
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  entranceDurationMs?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(100)
+  @Max(5000)
+  exitDurationMs?: number;
+
+  @IsOptional()
+  @IsEnum(OverlayEffect)
+  overlayEffect?: OverlayEffect;
 
   @IsOptional()
   @IsObject()

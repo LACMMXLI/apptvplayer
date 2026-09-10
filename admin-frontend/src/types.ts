@@ -48,6 +48,28 @@ export const SLIDE_EFFECT_OPTIONS: { value: SlideEffect; label: string }[] = [
   { value: 'BOUNCE', label: 'Rebote (bounce)' },
 ];
 
+export type OverlayEffect =
+  | 'NONE'
+  | 'FLASH'
+  | 'SHINE_SWEEP'
+  | 'GLOW_PULSE'
+  | 'VIGNETTE_PULSE'
+  | 'FLICKER'
+  | 'LIGHT_LEAK';
+
+export const OVERLAY_EFFECT_OPTIONS: { value: OverlayEffect; label: string }[] = [
+  { value: 'NONE', label: 'Sin efecto de video' },
+  { value: 'FLASH', label: 'Destellos (flash)' },
+  { value: 'SHINE_SWEEP', label: 'Brillo deslizante (shine)' },
+  { value: 'GLOW_PULSE', label: 'Resplandor pulsante (glow)' },
+  { value: 'VIGNETTE_PULSE', label: 'Viñeta pulsante' },
+  { value: 'FLICKER', label: 'Parpadeo (flicker)' },
+  { value: 'LIGHT_LEAK', label: 'Fuga de luz (light leak)' },
+];
+
+export const MIN_EFFECT_DURATION_MS = 100;
+export const MAX_EFFECT_DURATION_MS = 5000;
+
 export interface Slide {
   id: string;
   title: string;
@@ -57,6 +79,9 @@ export interface Slide {
   backgroundColor: string;
   entranceEffect: SlideEffect;
   exitEffect: SlideEffect;
+  entranceDurationMs: number;
+  exitDurationMs: number;
+  overlayEffect: OverlayEffect;
   createdAt: string;
 }
 

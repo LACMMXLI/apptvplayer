@@ -40,6 +40,18 @@ enum SlideEffect {
   BOUNCE
 }
 
+// Continuous decorative effect layered on top of the slide for its whole
+// display time (independent from the one-shot enter/exit transition above).
+enum OverlayEffect {
+  NONE
+  FLASH
+  SHINE_SWEEP
+  GLOW_PULSE
+  VIGNETTE_PULSE
+  FLICKER
+  LIGHT_LEAK
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -93,6 +105,9 @@ model Slide {
   backgroundColor String  @default("#000000")
   entranceEffect SlideEffect @default(FADE)
   exitEffect     SlideEffect @default(FADE)
+  entranceDurationMs Int  @default(700)
+  exitDurationMs     Int  @default(700)
+  overlayEffect  OverlayEffect @default(NONE)
   layout         Json?    // free-form layout config for the visual slide editor
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

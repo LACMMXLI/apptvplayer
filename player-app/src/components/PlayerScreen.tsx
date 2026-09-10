@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Playlist, PlaylistItem } from '../types';
-import SlideRenderer, { ANIMATION_MS } from './SlideRenderer';
+import SlideRenderer, { getExitDurationMs } from './SlideRenderer';
 
 interface Props {
   playlist: Playlist;
@@ -36,7 +36,9 @@ export default function PlayerScreen({ playlist }: Props) {
   useEffect(() => {
     if (!outgoing) return;
     if (outgoingTimer.current) clearTimeout(outgoingTimer.current);
-    outgoingTimer.current = setTimeout(() => setOutgoing(null), ANIMATION_MS);
+    // Keep the outgoing layer mounted long enough for its own exit animation
+    // (which can be configured per-slide) to finish before unmounting it.
+    outgoingTimer.current = setTimeout(() => setOutgoing(null), getExitDurationMs(outgoing.slide));
     return () => {
       if (outgoingTimer.current) clearTimeout(outgoingTimer.current);
     };

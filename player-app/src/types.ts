@@ -18,6 +18,15 @@ export type SlideEffect =
   | 'KEN_BURNS'
   | 'BOUNCE';
 
+export type OverlayEffect =
+  | 'NONE'
+  | 'FLASH'
+  | 'SHINE_SWEEP'
+  | 'GLOW_PULSE'
+  | 'VIGNETTE_PULSE'
+  | 'FLICKER'
+  | 'LIGHT_LEAK';
+
 export interface Slide {
   id: string;
   title: string;
@@ -25,6 +34,9 @@ export interface Slide {
   backgroundColor: string;
   entranceEffect: SlideEffect;
   exitEffect: SlideEffect;
+  entranceDurationMs: number;
+  exitDurationMs: number;
+  overlayEffect: OverlayEffect;
   media: MediaFile | null;
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { MediaFile, Slide, SlideEffect } from '../types';
-import { SLIDE_EFFECT_OPTIONS } from '../types';
+import type { MediaFile, OverlayEffect, Slide, SlideEffect } from '../types';
+import { MAX_EFFECT_DURATION_MS, MIN_EFFECT_DURATION_MS, OVERLAY_EFFECT_OPTIONS, SLIDE_EFFECT_OPTIONS } from '../types';
 import { mediaApi, slidesApi } from '../api/endpoints';
 
 const emptyForm = {
@@ -11,6 +11,9 @@ const emptyForm = {
   backgroundColor: '#000000',
   entranceEffect: 'FADE' as SlideEffect,
   exitEffect: 'FADE' as SlideEffect,
+  entranceDurationMs: 700,
+  exitDurationMs: 700,
+  overlayEffect: 'NONE' as OverlayEffect,
 };
 
 type FormState = typeof emptyForm;
@@ -27,6 +30,15 @@ const ENTRANCE_ANIMATION: Record<SlideEffect, string | null> = {
   BLUR: 'anim-blur-enter',
   KEN_BURNS: 'anim-ken-burns-pan',
   BOUNCE: 'anim-bounce-enter',
+};
+
+const OVERLAY_ANIMATION: Record<Exclude<OverlayEffect, 'NONE'>, { name: string; durationS: number }> = {
+  FLASH: { name: 'anim-overlay-flash', durationS: 2.6 },
+  SHINE_SWEEP: { name: 'anim-overlay-shine', durationS: 3.2 },
+  GLOW_PULSE: { name: 'anim-overlay-glow', durationS: 3 },
+  VIGNETTE_PULSE: { name: 'anim-overlay-vignette', durationS: 3.4 },
+  FLICKER: { name: 'anim-overlay-flicker', durationS: 0.28 },
+  LIGHT_LEAK: { name: 'anim-overlay-light-leak', durationS: 6 },
 };
 
 export default function SlidesPage() {
@@ -58,6 +70,9 @@ export default function SlidesPage() {
       backgroundColor: slide.backgroundColor,
       entranceEffect: slide.entranceEffect,
       exitEffect: slide.exitEffect,
+      entranceDurationMs: slide.entranceDurationMs ?? 700,
+      exitDurationMs: slide.exitDurationMs ?? 700,
+      overlayEffect: slide.overlayEffect ?? 'NONE',
     });
     setPreviewKey((k) => k + 1);
   }
@@ -77,6 +92,9 @@ export default function SlidesPage() {
         backgroundColor: form.backgroundColor,
         entranceEffect: form.entranceEffect,
         exitEffect: form.exitEffect,
+        entranceDurationMs: form.entranceDurationMs,
+        exitDurationMs: form.exitDurationMs,
+        overlayEffect: form.overlayEffect,
       };
       if (form.id) {
         await slidesApi.update(form.id, payload);
@@ -99,7 +117,8 @@ export default function SlidesPage() {
 
   const previewMedia = media.find((m) => m.id === form.mediaId);
   const previewAnimation = ENTRANCE_ANIMATION[form.entranceEffect];
-  const previewDurationMs = form.entranceEffect === 'KEN_BURNS' ? 2600 : 700;
+  const previewDurationMs = form.entranceEffect === 'KEN_BURNS' ? 2600 : form.entranceDurationMs;
+  const overlayPreview = form.overlayEffect !== 'NONE' ? OVERLAY_ANIMATION[form.overlayEffect] : null;
 
   return (
     <div>
@@ -178,35 +197,86 @@ export default function SlidesPage() {
               onChange={(e) => setForm({ ...form, backgroundColor: e.target.value })}
             />
           </label>
+
+          <div className="field-row">
+            <label>
+              Animación de entrada
+              <select
+                value={form.entranceEffect}
+                onChange={(e) => {
+                  setForm({ ...form, entranceEffect: e.target.value as SlideEffect });
+                  setPreviewKey((k) => k + 1);
+                }}
+              >
+                {SLIDE_EFFECT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Duración entrada (ms)
+              <input
+                type="number"
+                min={MIN_EFFECT_DURATION_MS}
+                max={MAX_EFFECT_DURATION_MS}
+                step={50}
+                value={form.entranceDurationMs}
+                disabled={form.entranceEffect === 'NONE'}
+                onChange={(e) => {
+                  setForm({ ...form, entranceDurationMs: Number(e.target.value) });
+                  setPreviewKey((k) => k + 1);
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="field-row">
+            <label>
+              Animación de salida
+              <select
+                value={form.exitEffect}
+                onChange={(e) => setForm({ ...form, exitEffect: e.target.value as SlideEffect })}
+              >
+                {SLIDE_EFFECT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Duración salida (ms)
+              <input
+                type="number"
+                min={MIN_EFFECT_DURATION_MS}
+                max={MAX_EFFECT_DURATION_MS}
+                step={50}
+                value={form.exitDurationMs}
+                disabled={form.exitEffect === 'NONE'}
+                onChange={(e) => setForm({ ...form, exitDurationMs: Number(e.target.value) })}
+              />
+            </label>
+          </div>
+
           <label>
-            Animación de entrada
+            Efecto de video (durante la reproducción)
             <select
-              value={form.entranceEffect}
+              value={form.overlayEffect}
               onChange={(e) => {
-                setForm({ ...form, entranceEffect: e.target.value as SlideEffect });
+                setForm({ ...form, overlayEffect: e.target.value as OverlayEffect });
                 setPreviewKey((k) => k + 1);
               }}
             >
-              {SLIDE_EFFECT_OPTIONS.map((opt) => (
+              {OVERLAY_EFFECT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
             </select>
           </label>
-          <label>
-            Animación de salida
-            <select
-              value={form.exitEffect}
-              onChange={(e) => setForm({ ...form, exitEffect: e.target.value as SlideEffect })}
-            >
-              {SLIDE_EFFECT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
+
           <button className="btn-primary" onClick={onSave} disabled={saving || !form.title}>
             {saving ? 'Guardando…' : 'Guardar slide'}
           </button>
@@ -236,6 +306,12 @@ export default function SlidesPage() {
                 )
               ) : (
                 <span className="slide-preview-title">{form.title || 'Título del slide'}</span>
+              )}
+              {overlayPreview && (
+                <div
+                  className={`slide-overlay-fx overlay-${form.overlayEffect.toLowerCase().replace(/_/g, '-')}`}
+                  style={{ animation: `${overlayPreview.name} ${overlayPreview.durationS}s ease-in-out infinite` }}
+                />
               )}
             </div>
           </div>

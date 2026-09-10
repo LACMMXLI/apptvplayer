@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { Slide, SlideEffect } from '../types';
+import type { OverlayEffect, Slide, SlideEffect } from '../types';
 import { resolveMediaSrc } from '../mediaCache';
 
-const ANIMATION_MS = 700;
+const DEFAULT_ANIMATION_MS = 700;
 
 interface Props {
   slide: Slide;
@@ -22,9 +22,34 @@ const EFFECT_ANIMATIONS: Record<Exclude<SlideEffect, 'NONE'>, { enter: string; e
   BOUNCE: { enter: 'anim-bounce-enter', exit: 'anim-bounce-exit' },
 };
 
+// Continuous overlay animation that loops for as long as the slide is on screen.
+const OVERLAY_ANIMATIONS: Record<Exclude<OverlayEffect, 'NONE'>, string> = {
+  FLASH: 'anim-overlay-flash',
+  SHINE_SWEEP: 'anim-overlay-shine',
+  GLOW_PULSE: 'anim-overlay-glow',
+  VIGNETTE_PULSE: 'anim-overlay-vignette',
+  FLICKER: 'anim-overlay-flicker',
+  LIGHT_LEAK: 'anim-overlay-light-leak',
+};
+
+// How long one loop of each overlay animation lasts, tuned per effect so it
+// reads naturally (a flash should be quick/sporadic, a light leak slow).
+const OVERLAY_DURATIONS_S: Record<Exclude<OverlayEffect, 'NONE'>, number> = {
+  FLASH: 2.6,
+  SHINE_SWEEP: 3.2,
+  GLOW_PULSE: 3,
+  VIGNETTE_PULSE: 3.4,
+  FLICKER: 0.28,
+  LIGHT_LEAK: 6,
+};
+
 function animationName(effect: SlideEffect, phase: 'enter' | 'exit'): string | null {
   if (effect === 'NONE') return null;
   return EFFECT_ANIMATIONS[effect][phase];
+}
+
+export function getExitDurationMs(slide: Slide): number {
+  return slide.exitDurationMs ?? DEFAULT_ANIMATION_MS;
 }
 
 export default function SlideRenderer({ slide, phase }: Props) {
@@ -52,6 +77,7 @@ export default function SlideRenderer({ slide, phase }: Props) {
 
   const effect = phase === 'enter' ? slide.entranceEffect : slide.exitEffect;
   const animation = animationName(effect, phase);
+  const durationMs = phase === 'enter' ? slide.entranceDurationMs ?? DEFAULT_ANIMATION_MS : getExitDurationMs(slide);
   const isKenBurns = phase === 'enter' && slide.entranceEffect === 'KEN_BURNS';
   // Ken Burns keeps panning/zooming slowly for the entire time the slide is on screen,
   // independent of the short enter/exit crossfade layer animation above.
@@ -59,10 +85,15 @@ export default function SlideRenderer({ slide, phase }: Props) {
     ? { animation: `anim-ken-burns-pan ${Math.max(slide.durationSecs, 3)}s ease-in-out both` }
     : undefined;
 
+  // Only the "current" (entering) layer shows the decorative overlay — the
+  // outgoing layer is on its way out and would just double it up.
+  const overlayEffect = slide.overlayEffect;
+  const showOverlay = phase === 'enter' && overlayEffect && overlayEffect !== 'NONE';
+
   return (
     <div
       className={`slide-layer${phase === 'exit' ? ' slide-layer-exit' : ''}`}
-      style={animation ? { animation: `${animation} ${ANIMATION_MS}ms ease both` } : undefined}
+      style={animation ? { animation: `${animation} ${durationMs}ms ease both` } : undefined}
     >
       <div className="slide" style={{ backgroundColor: slide.backgroundColor }}>
         {slide.media && src && slide.media.type === 'IMAGE' && (
@@ -72,9 +103,19 @@ export default function SlideRenderer({ slide, phase }: Props) {
           <video className="slide-media" src={src} autoPlay muted loop playsInline style={mediaStyle} />
         )}
         {!slide.media && <div className="slide-title-only">{slide.title}</div>}
+        {showOverlay && (
+          <div
+            className={`slide-overlay-fx overlay-${overlayEffect.toLowerCase().replace(/_/g, '-')}`}
+            style={{
+              animation: `${OVERLAY_ANIMATIONS[overlayEffect as Exclude<OverlayEffect, 'NONE'>]} ${
+                OVERLAY_DURATIONS_S[overlayEffect as Exclude<OverlayEffect, 'NONE'>]
+              }s ease-in-out infinite`,
+            }}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-export { ANIMATION_MS };
+export { DEFAULT_ANIMATION_MS };
