@@ -14,7 +14,7 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: 'Inter Variable', 'Segoe UI', Roboto, Arial, sans-serif;
   color: #fff;
 }
 
@@ -44,6 +44,45 @@ body {
 @keyframes pairing-card-in {
   from { opacity: 0; transform: translateY(16px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.pairing-card-with-qr {
+  display: flex;
+  align-items: center;
+  gap: 4rem;
+  text-align: left;
+  max-width: min(92vw, 70rem);
+}
+
+.pairing-main {
+  min-width: 0;
+}
+
+.pairing-card-with-qr .pairing-code {
+  display: inline-block;
+}
+
+/* White plate: a QR code needs dark-on-light and a clear margin to scan. */
+.pairing-qr {
+  flex-shrink: 0;
+  width: min(34vmin, 20rem);
+  padding: 0.6rem;
+  border-radius: 1rem;
+  background: #fff;
+}
+
+.pairing-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (orientation: portrait) {
+  .pairing-card-with-qr {
+    flex-direction: column;
+    gap: 2.5rem;
+    text-align: center;
+  }
 }
 
 .pairing-card h1 {
@@ -141,10 +180,16 @@ body {
 .slide-layer {
   position: absolute;
   inset: 0;
-  will-change: transform, opacity, filter;
+  /* Compositor-only properties. ilter is deliberately not promoted here:
+     keeping a full-screen filter layer alive is expensive on TV hardware. */
+  will-change: transform, opacity;
   transform-style: preserve-3d;
   backface-visibility: hidden;
 }
+
+/* The incoming slide always sits above the one leaving. */
+.slide-layer-enter { z-index: 2; }
+.slide-layer-exit { z-index: 1; }
 
 .slide {
   width: 100%;
@@ -176,7 +221,7 @@ body {
   to { opacity: 0; }
 }
 @keyframes anim-zoom-in-enter {
-  from { opacity: 0; transform: scale(0.85); }
+  from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
 @keyframes anim-zoom-in-exit {
@@ -200,20 +245,20 @@ body {
   to { opacity: 0; transform: rotate(8deg) scale(0.92); }
 }
 @keyframes anim-slide-left-enter {
-  from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 @keyframes anim-slide-left-exit {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(-100%); }
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 @keyframes anim-slide-right-enter {
-  from { opacity: 0; transform: translateX(-100%); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 @keyframes anim-slide-right-exit {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(100%); }
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
 }
 @keyframes anim-flip-enter {
   from { opacity: 0; transform: rotateY(-100deg) scale(0.9); }
@@ -224,12 +269,12 @@ body {
   to { opacity: 0; transform: rotateY(100deg) scale(0.9); }
 }
 @keyframes anim-blur-enter {
-  from { opacity: 0; filter: blur(24px); transform: scale(1.05); }
+  from { opacity: 0; filter: blur(14px); transform: scale(1.05); }
   to { opacity: 1; filter: blur(0); transform: scale(1); }
 }
 @keyframes anim-blur-exit {
   from { opacity: 1; filter: blur(0); transform: scale(1); }
-  to { opacity: 0; filter: blur(24px); transform: scale(1.05); }
+  to { opacity: 0; filter: blur(14px); transform: scale(1.05); }
 }
 @keyframes anim-bounce-enter {
   0% { opacity: 0; transform: scale(0.3); }
@@ -248,8 +293,8 @@ body {
 }
 /* Slow continuous pan+zoom applied directly to the media element for the whole slide duration */
 @keyframes anim-ken-burns-pan {
-  0% { transform: scale(1) translate(0, 0); }
-  100% { transform: scale(1.18) translate(-2%, -2%); }
+  from { transform: var(--kb-from, scale(1) translate(0, 0)); }
+  to { transform: var(--kb-to, scale(1.18) translate(-2%, -2%)); }
 }
 
 /* Continuous decorative overlays layered on top of the current slide */
@@ -324,20 +369,26 @@ body {
   100% { opacity: 0.25; transform: translate(-10%, -6%) scale(1); }
 }
 
+/* Connection-lost indicator. Customers in the restaurant see this screen, so
+   it is a small unobtrusive dot in the corner rather than an error banner;
+   staff who know to look for it can still tell the TV is on cached content. */
 .offline-badge {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
+  right: 1.1vmin;
+  bottom: 1.1vmin;
   z-index: 10;
-  background: rgba(200, 40, 40, 0.85);
-  padding: 0.4rem 0.9rem;
-  border-radius: 0.5rem;
-  font-size: 0.85rem;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  animation: offline-badge-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  width: 1.1vmin;
+  height: 1.1vmin;
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 50%;
+  background: #f5a524;
+  opacity: 0.75;
+  box-shadow: 0 0 0 0.35vmin rgba(0, 0, 0, 0.35);
+  animation: offline-badge-in 0.6s ease both;
 }
 
 @keyframes offline-badge-in {
-  from { opacity: 0; transform: translateY(-12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 0.75; }
 }

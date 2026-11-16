@@ -59,6 +59,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-signage}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-signage}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # Behind Coolify's reverse proxy: trust 1 hop so rate limiting sees the
+      # real client IP instead of the proxy's.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
       S3_ENDPOINT: minio
       S3_PORT: 9000
       S3_USE_SSL: 'false'
@@ -97,6 +101,8 @@ services:
     environment:
       API_URL: ${API_URL}
       WS_URL: ${WS_URL}
+      # Public URL of the admin panel; enables the QR code on the pairing screen.
+      ADMIN_URL: ${ADMIN_URL:-}
     ports:
       - '8080'
 

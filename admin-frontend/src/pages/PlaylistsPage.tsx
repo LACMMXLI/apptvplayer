@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Branch, Playlist } from '../types';
 import { branchesApi, playlistsApi } from '../api/endpoints';
+import { useFeedback } from '../components/Feedback';
 
 export default function PlaylistsPage() {
+  const { confirm, attempt } = useFeedback();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,12 +14,12 @@ export default function PlaylistsPage() {
 
   function refresh() {
     setLoading(true);
-    Promise.all([playlistsApi.list(), branchesApi.list()])
-      .then(([p, b]) => {
+    attempt(() =>
+      Promise.all([playlistsApi.list(), branchesApi.list()]).then(([p, b]) => {
         setPlaylists(p);
         setBranches(b);
-      })
-      .finally(() => setLoading(false));
+      }),
+    ).finally(() => setLoading(false));
   }
 
   useEffect(refresh, []);
@@ -25,16 +27,23 @@ export default function PlaylistsPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await playlistsApi.create({ name, branchId: branchId || undefined });
+    const ok = await attempt(
+      () => playlistsApi.create({ name, branchId: branchId || undefined }),
+      'Playlist creada',
+    );
+    if (!ok) return;
     setName('');
     setBranchId('');
     refresh();
   }
 
-  async function onDelete(id: string) {
-    if (!confirm('¿Eliminar esta playlist?')) return;
-    await playlistsApi.remove(id);
-    refresh();
+  async function onDelete(playlist: Playlist) {
+    const confirmed = await confirm({
+      title: `¿Eliminar "${playlist.name}"?`,
+      message: 'Las pantallas que la reproducen se quedarán sin contenido. Los slides no se borran.',
+    });
+    if (!confirmed) return;
+    if (await attempt(() => playlistsApi.remove(playlist.id), 'Playlist eliminada')) refresh();
   }
 
   return (
@@ -44,10 +53,11 @@ export default function PlaylistsPage() {
       <form className="inline-form" onSubmit={onCreate}>
         <input
           placeholder="Nombre de la playlist"
+          aria-label="Nombre de la playlist"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+        <select aria-label="Sucursal" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
           <option value="">Sin sucursal específica</option>
           {branches.map((b) => (
             <option key={b.id} value={b.id}>
@@ -55,40 +65,46 @@ export default function PlaylistsPage() {
             </option>
           ))}
         </select>
-        <button className="btn-primary" type="submit">
+        <button className="btn-primary" type="submit" disabled={!name.trim()}>
           Crear playlist
         </button>
       </form>
 
       {loading ? (
         <p>Cargando…</p>
+      ) : playlists.length === 0 ? (
+        <p className="empty-state">Aún no hay playlists. Crea la primera con el formulario de arriba.</p>
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Sucursal</th>
-              <th>Slides</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {playlists.map((p) => (
-              <tr key={p.id}>
-                <td>
-                  <Link to={`/playlists/${p.id}`}>{p.name}</Link>
-                </td>
-                <td>{p.branch?.name ?? '—'}</td>
-                <td>{p.items.length}</td>
-                <td>
-                  <button className="btn-danger-ghost" onClick={() => onDelete(p.id)}>
-                    Eliminar
-                  </button>
-                </td>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Sucursal</th>
+                <th>Slides</th>
+                <th>
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {playlists.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <Link to={`/playlists/${p.id}`}>{p.name}</Link>
+                  </td>
+                  <td>{p.branch?.name ?? '—'}</td>
+                  <td>{p.items.length}</td>
+                  <td>
+                    <button className="btn-danger-ghost" onClick={() => onDelete(p)}>
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

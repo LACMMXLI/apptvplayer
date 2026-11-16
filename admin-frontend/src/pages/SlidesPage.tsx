@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { MediaFile, OverlayEffect, Slide, SlideEffect } from '../types';
 import { MAX_EFFECT_DURATION_MS, MIN_EFFECT_DURATION_MS, OVERLAY_EFFECT_OPTIONS, SLIDE_EFFECT_OPTIONS } from '../types';
 import { mediaApi, slidesApi } from '../api/endpoints';
+import { useFeedback } from '../components/Feedback';
 
 const emptyForm = {
   id: null as string | null,
@@ -42,6 +43,7 @@ const OVERLAY_ANIMATION: Record<Exclude<OverlayEffect, 'NONE'>, { name: string; 
 };
 
 export default function SlidesPage() {
+  const { confirm, attempt } = useFeedback();
   const [slides, setSlides] = useState<Slide[]>([]);
   const [media, setMedia] = useState<MediaFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,12 +53,12 @@ export default function SlidesPage() {
 
   function refresh() {
     setLoading(true);
-    Promise.all([slidesApi.list(), mediaApi.list()])
-      .then(([s, m]) => {
+    attempt(() =>
+      Promise.all([slidesApi.list(), mediaApi.list()]).then(([s, m]) => {
         setSlides(s);
         setMedia(m);
-      })
-      .finally(() => setLoading(false));
+      }),
+    ).finally(() => setLoading(false));
   }
 
   useEffect(refresh, []);
@@ -96,11 +98,12 @@ export default function SlidesPage() {
         exitDurationMs: form.exitDurationMs,
         overlayEffect: form.overlayEffect,
       };
-      if (form.id) {
-        await slidesApi.update(form.id, payload);
-      } else {
-        await slidesApi.create(payload);
-      }
+      const id = form.id;
+      const ok = await attempt(
+        () => (id ? slidesApi.update(id, payload) : slidesApi.create(payload)),
+        id ? 'Slide guardado' : 'Slide creado',
+      );
+      if (!ok) return;
       newSlide();
       refresh();
     } finally {
@@ -108,16 +111,30 @@ export default function SlidesPage() {
     }
   }
 
-  async function onDelete(id: string) {
-    if (!confirm('¿Eliminar este slide?')) return;
-    await slidesApi.remove(id);
-    if (form.id === id) newSlide();
+  async function onDelete(slide: Slide) {
+    const confirmed = await confirm({
+      title: `¿Eliminar "${slide.title}"?`,
+      message: 'También se quitará de todas las playlists donde aparece.',
+    });
+    if (!confirmed) return;
+    if (!(await attempt(() => slidesApi.remove(slide.id), 'Slide eliminado'))) return;
+    if (form.id === slide.id) newSlide();
     refresh();
   }
 
   const previewMedia = media.find((m) => m.id === form.mediaId);
   const previewAnimation = ENTRANCE_ANIMATION[form.entranceEffect];
   const previewDurationMs = form.entranceEffect === 'KEN_BURNS' ? 2600 : form.entranceDurationMs;
+  // Same curves the player uses (player-app SlideRenderer), so the preview
+  // moves like the real screen.
+  const previewEasing =
+    form.entranceEffect === 'SLIDE_LEFT' || form.entranceEffect === 'SLIDE_RIGHT'
+      ? 'cubic-bezier(0.65, 0, 0.35, 1)'
+      : form.entranceEffect === 'BOUNCE'
+        ? 'ease'
+        : form.entranceEffect === 'FADE' || form.entranceEffect === 'KEN_BURNS'
+          ? 'ease-in-out'
+          : 'cubic-bezier(0.22, 1, 0.36, 1)';
   const overlayPreview = form.overlayEffect !== 'NONE' ? OVERLAY_ANIMATION[form.overlayEffect] : null;
 
   return (
@@ -141,9 +158,10 @@ export default function SlidesPage() {
                   <span>{slide.title}</span>
                   <button
                     className="btn-danger-ghost"
+                    aria-label={`Eliminar ${slide.title}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete(slide.id);
+                      onDelete(slide);
                     }}
                   >
                     ✕
@@ -295,7 +313,7 @@ export default function SlidesPage() {
               className="slide-preview"
               style={{
                 backgroundColor: form.backgroundColor,
-                animation: previewAnimation ? `${previewAnimation} ${previewDurationMs}ms ease both` : undefined,
+                animation: previewAnimation ? `${previewAnimation} ${previewDurationMs}ms ${previewEasing} both` : undefined,
               }}
             >
               {previewMedia ? (

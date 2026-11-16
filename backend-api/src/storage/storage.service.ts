@@ -45,9 +45,12 @@ export class StorageService implements OnModuleInit {
     }
   }
 
-  async upload(buffer: Buffer, originalName: string, mimeType: string) {
-    const ext = originalName.includes('.') ? originalName.split('.').pop() : '';
-    const objectKey = `${randomUUID()}${ext ? `.${ext}` : ''}`;
+  /**
+   * `extension` and `mimeType` must come from server-side content detection,
+   * never from the client-supplied file name or MIME type.
+   */
+  async upload(buffer: Buffer, extension: string, mimeType: string) {
+    const objectKey = `${randomUUID()}.${extension}`;
 
     await this.client.putObject(this.bucket, objectKey, buffer, buffer.length, {
       'Content-Type': mimeType,

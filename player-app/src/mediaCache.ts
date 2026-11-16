@@ -1,4 +1,4 @@
-import type { Playlist } from './types';
+import type { MediaFile, Playlist } from './types';
 
 const PLAYLIST_KEY = 'signage.playlist.cache';
 const MEDIA_CACHE_NAME = 'signage-media-v1';
@@ -42,6 +42,66 @@ export async function preloadPlaylistMedia(playlist: Playlist): Promise<void> {
       }
     }),
   );
+}
+
+interface StoreEntry {
+  ready: Promise<string>;
+  objectUrl?: string;
+  // Held so the browser keeps the decoded bitmap around until it is shown.
+  image?: HTMLImageElement;
+}
+
+/**
+ * Resolves and warms up slide media ahead of time so a slide's entrance
+ * animation starts with the picture already decoded, instead of animating an
+ * empty background and popping the image in afterwards.
+ */
+export class SlideMediaStore {
+  private entries = new Map<string, StoreEntry>();
+
+  /** Resolves once the media is ready to be painted; returns the src to use. */
+  prepare(media: MediaFile | null): Promise<string | null> {
+    if (!media) return Promise.resolve(null);
+
+    let entry = this.entries.get(media.url);
+    if (!entry) {
+      entry = { ready: Promise.resolve(media.url) };
+      // Videos stream straight from the network (the browser buffers them
+      // itself); loading a whole video into memory as a blob is too heavy for
+      // TV hardware. The offline copy is only used if the network fails.
+      if (media.type === 'IMAGE') {
+        const created = entry;
+        created.ready = (async () => {
+          const src = await resolveMediaSrc(media.url);
+          if (src.startsWith('blob:')) created.objectUrl = src;
+          const image = new Image();
+          image.src = src;
+          created.image = image;
+          try {
+            await image.decode();
+          } catch {
+            // Broken/unsupported image: let the <img> element deal with it.
+          }
+          return src;
+        })();
+      }
+      this.entries.set(media.url, entry);
+    }
+    return entry.ready;
+  }
+
+  /** Drops (and frees) everything not referenced by the given media URLs. */
+  retainOnly(urls: Set<string>) {
+    for (const [url, entry] of this.entries) {
+      if (urls.has(url)) continue;
+      if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
+      this.entries.delete(url);
+    }
+  }
+
+  dispose() {
+    this.retainOnly(new Set());
+  }
 }
 
 export async function resolveMediaSrc(url: string): Promise<string> {

@@ -1,12 +1,21 @@
 import { MediaFile, PrismaClient, Slide } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
 async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@restaurant.com';
+  const usingDefaultPassword = !process.env.SEED_ADMIN_PASSWORD;
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin123!';
+
+  // The default password is public (it is in the README), so it must never
+  // become a real admin account on a production deployment.
+  if (process.env.NODE_ENV === 'production' && (usingDefaultPassword || adminPassword.length < 12)) {
+    throw new Error(
+      'Refusing to seed in production without a strong SEED_ADMIN_PASSWORD (min 12 characters).',
+    );
+  }
 
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
@@ -123,7 +132,7 @@ async function main() {
       id: 'seed-device-tv-1',
       name: 'TV Entrada - Centro',
       pairingCode: 'DEMO01',
-      deviceKey: randomUUID(),
+      deviceKey: `sha256:${createHash('sha256').update(randomUUID()).digest('hex')}`,
       status: 'ONLINE',
       branchId: branchDowntown.id,
       playlistId: playlist.id,
@@ -134,7 +143,12 @@ async function main() {
   console.log(`Device ready: ${device.name} (pairing code: ${device.pairingCode})`);
 
   console.log('\nSeed completed.');
-  console.log(`Login with: ${adminEmail} / ${adminPassword}`);
+  // Never print the password itself: seed output ends up in deployment logs.
+  console.log(
+    `Login with: ${adminEmail} / ${
+      usingDefaultPassword ? 'the default dev password (see README)' : 'the SEED_ADMIN_PASSWORD you set'
+    }`,
+  );
 }
 
 main()

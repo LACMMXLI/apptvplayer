@@ -5,4 +5,7 @@
 window.__RUNTIME_CONFIG__ = {
   API_URL: '',
   WS_URL: '',
+  // Public URL of the admin panel. When set, the pairing screen shows a QR
+  // code that opens it with this screen's code pre-filled.
+  ADMIN_URL: '',
 };

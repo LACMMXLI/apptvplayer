@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import type { DeviceCredentials } from './types';
 
 const WS_URL =
   window.__RUNTIME_CONFIG__?.WS_URL || import.meta.env.VITE_WS_URL || 'http://localhost:3000';
@@ -6,7 +7,7 @@ const WS_URL =
 let socket: Socket | null = null;
 
 export function connectDeviceSocket(
-  deviceId: string,
+  creds: DeviceCredentials,
   handlers: {
     onPlaylistUpdate?: () => void;
     onForceReload?: () => void;
@@ -20,10 +21,9 @@ export function connectDeviceSocket(
     transports: ['websocket'],
     reconnection: true,
     reconnectionDelay: 2000,
-  });
-
-  socket.on('connect', () => {
-    socket?.emit('identify', { deviceId });
+    // The backend only joins this socket to the device's room after
+    // verifying these credentials in the handshake.
+    auth: { deviceId: creds.deviceId, deviceKey: creds.deviceKey },
   });
 
   socket.on('playlist_update', () => {

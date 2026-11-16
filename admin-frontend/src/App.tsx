@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { FeedbackProvider } from './components/Feedback';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -16,6 +17,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <FeedbackProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
@@ -30,6 +32,7 @@ export default function App() {
             </Route>
           </Route>
         </Routes>
+        </FeedbackProvider>
       </AuthProvider>
     </BrowserRouter>
   );

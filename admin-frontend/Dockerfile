@@ -16,6 +16,7 @@ RUN npm run build
 FROM nginx:1.27-alpine AS runtime
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 

@@ -1,14 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Branch, Device, Playlist } from '../types';
 import { branchesApi, devicesApi, playlistsApi } from '../api/endpoints';
-
-const STATUS_LABEL: Record<Device['status'], string> = {
-  PENDING: 'Pendiente',
-  ONLINE: 'En línea',
-  OFFLINE: 'Desconectado',
-};
+import { STATUS_LABEL, lastSeenLabel, liveStatus } from '../deviceStatus';
+import { useFeedback } from '../components/Feedback';
+import Icon from '../components/Icon';
 
 export default function DevicesPage() {
+  const { confirm, attempt } = useFeedback();
   const [devices, setDevices] = useState<Device[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -24,16 +23,39 @@ export default function DevicesPage() {
 
   function refresh() {
     setLoading(true);
-    Promise.all([devicesApi.list(), branchesApi.list(), playlistsApi.list()])
-      .then(([d, b, p]) => {
+    attempt(() =>
+      Promise.all([devicesApi.list(), branchesApi.list(), playlistsApi.list()]).then(([d, b, p]) => {
         setDevices(d);
         setBranches(b);
         setPlaylists(p);
-      })
-      .finally(() => setLoading(false));
+      }),
+    ).finally(() => setLoading(false));
   }
 
   useEffect(refresh, []);
+
+  // Arriving from a TV's QR code (/devices?code=ABC123): jump straight to
+  // that screen's approval card. If it isn't in the pending list, fall back
+  // to the manual form with the code filled in.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  useEffect(() => {
+    const code = (searchParams.get('code') ?? '').trim().toUpperCase().slice(0, 6);
+    if (!code || loading) return;
+    const match = devices.find((d) => d.status === 'PENDING' && d.pairingCode === code);
+    if (match) {
+      setHighlightId(match.id);
+      requestAnimationFrame(() => {
+        const input = document.getElementById(`approve-name-${match.id}`);
+        input?.scrollIntoView({ block: 'center' });
+        input?.focus();
+      });
+    } else {
+      setShowManualLink(true);
+      setPairingCode(code);
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, loading, devices, setSearchParams]);
 
   async function onManualLink(e: FormEvent) {
     e.preventDefault();
@@ -76,29 +98,38 @@ export default function DevicesPage() {
   }
 
   async function onAssignPlaylist(deviceId: string, playlistId: string) {
-    await devicesApi.assignPlaylist(deviceId, playlistId || null);
+    await attempt(() => devicesApi.assignPlaylist(deviceId, playlistId || null), 'Playlist asignada');
     refresh();
   }
 
   async function onAssignBranch(deviceId: string, branchId: string) {
-    await devicesApi.update(deviceId, { branchId: branchId || undefined });
+    await attempt(() => devicesApi.update(deviceId, { branchId: branchId || undefined }), 'Sucursal actualizada');
     refresh();
   }
 
   async function onRename(deviceId: string, name: string) {
-    await devicesApi.update(deviceId, { name });
+    if (!name.trim()) return refresh();
+    await attempt(() => devicesApi.update(deviceId, { name: name.trim() }), 'Nombre actualizado');
     refresh();
   }
 
-  async function onDelete(id: string) {
-    if (!confirm('¿Eliminar este dispositivo?')) return;
-    await devicesApi.remove(id);
-    refresh();
+  async function onDelete(device: Device) {
+    const pending = device.status === 'PENDING';
+    const confirmed = await confirm({
+      title: pending ? '¿Rechazar esta pantalla?' : `¿Eliminar "${device.name}"?`,
+      message: pending
+        ? 'La TV mostrará un código nuevo y podrá volver a solicitar la vinculación.'
+        : 'La TV dejará de mostrar contenido y volverá a la pantalla de vinculación.',
+      confirmLabel: pending ? 'Rechazar' : 'Eliminar',
+    });
+    if (!confirmed) return;
+    if (await attempt(() => devicesApi.remove(device.id), pending ? 'Pantalla rechazada' : 'Pantalla eliminada')) refresh();
   }
 
   const pendingDevices = devices.filter((d) => d.status === 'PENDING');
   const linkedDevices = devices.filter((d) => d.status !== 'PENDING');
-  const onlineCount = devices.filter((d) => d.status === 'ONLINE').length;
+  const now = Date.now();
+  const onlineCount = linkedDevices.filter((d) => liveStatus(d, now) === 'ONLINE').length;
 
   return (
     <div>
@@ -153,13 +184,13 @@ export default function DevicesPage() {
                 {pendingDevices.map((d, i) => (
                   <div
                     key={d.id}
-                    className="device-card device-card-pending"
+                    className={`device-card device-card-pending${highlightId === d.id ? ' is-highlighted' : ''}`}
                     style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}
                   >
                     <div className="device-card-top">
                       <div className="device-icon-wrap">
-                        <span className="device-icon" aria-hidden="true">
-                          📺
+                        <span className="device-icon">
+                          <Icon name="screen" size={20} />
                         </span>
                         <span className="device-pairing-code">{d.pairingCode}</span>
                       </div>
@@ -167,8 +198,9 @@ export default function DevicesPage() {
                     </div>
 
                     <div className="device-field">
-                      <label>Nombre de la pantalla</label>
+                      <label htmlFor={`approve-name-${d.id}`}>Nombre de la pantalla</label>
                       <input
+                        id={`approve-name-${d.id}`}
                         className="device-approve-input"
                         placeholder="Ej: Sucursal Centro - Entrada"
                         value={approveNames[d.id] ?? ''}
@@ -199,9 +231,9 @@ export default function DevicesPage() {
                         onClick={() => onApprove(d)}
                         disabled={approving === d.id}
                       >
-                        {approving === d.id ? 'Aprobando…' : '✓ Aprobar pantalla'}
+                        {approving === d.id ? 'Aprobando…' : 'Aprobar pantalla'}
                       </button>
-                      <button className="btn-danger-ghost" onClick={() => onDelete(d.id)}>
+                      <button className="btn-danger-ghost" onClick={() => onDelete(d)}>
                         Rechazar
                       </button>
                     </div>
@@ -222,21 +254,24 @@ export default function DevicesPage() {
                 {linkedDevices.map((d, i) => (
                   <div
                     key={d.id}
-                    className={`device-card${d.status === 'ONLINE' ? ' is-online' : ''}`}
+                    className={`device-card${liveStatus(d, now) === 'ONLINE' ? ' is-online' : ''}`}
                     style={{ animationDelay: `${Math.min(i, 12) * 45}ms` }}
                   >
                     <div className="device-card-top">
                       <div className="device-icon-wrap">
-                        <span className="device-icon" aria-hidden="true">
-                          📺
+                        <span className="device-icon">
+                          <Icon name="screen" size={20} />
                         </span>
                         <input
                           className="device-name-input"
+                          aria-label="Nombre de la pantalla"
                           defaultValue={d.name}
                           onBlur={(e) => e.target.value !== d.name && onRename(d.id, e.target.value)}
                         />
                       </div>
-                      <span className={`status-badge status-${d.status.toLowerCase()}`}>{STATUS_LABEL[d.status]}</span>
+                      <span className={`status-badge status-${liveStatus(d, now).toLowerCase()}`}>
+                        {STATUS_LABEL[liveStatus(d, now)]}
+                      </span>
                     </div>
 
                     <div className="device-field">
@@ -264,8 +299,10 @@ export default function DevicesPage() {
                     </div>
 
                     <div className="device-meta">
-                      <span>{d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : 'Nunca conectado'}</span>
-                      <button className="btn-danger-ghost" onClick={() => onDelete(d.id)}>
+                      <span title={d.lastSeenAt ? new Date(d.lastSeenAt).toLocaleString() : undefined}>
+                        {lastSeenLabel(d, now)}
+                      </span>
+                      <button className="btn-danger-ghost" onClick={() => onDelete(d)}>
                         Eliminar
                       </button>
                     </div>

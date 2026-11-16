@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -13,6 +14,9 @@ import { RealtimeModule } from './realtime/realtime.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Not applied globally (players poll/heartbeat constantly and many TVs can
+    // share one public IP). Routes opt in with ThrottlerGuard + @Throttle.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     RealtimeModule,
     AuthModule,

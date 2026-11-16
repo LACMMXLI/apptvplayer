@@ -10,8 +10,15 @@ echo "Syncing database schema..."
 # re-run on every boot — it's a no-op once the DB already matches the schema.
 # Switch to `prisma migrate deploy` once real migrations are generated
 # against a real database and committed to the repo.
-if ! npx prisma db push --skip-generate --accept-data-loss; then
-  echo "WARNING: prisma db push failed (exit $?). Starting the API anyway."
+#
+# Deliberately WITHOUT --accept-data-loss: if a schema change would drop a
+# column/table that holds data, db push now refuses and leaves the database
+# untouched instead of silently deleting production data on boot. Apply such
+# changes by hand (or via a real migration) after reviewing them.
+if ! npx prisma db push --skip-generate; then
+  echo "WARNING: prisma db push failed (exit $?). The schema was NOT changed."
+  echo "If it reported possible data loss, review the change and apply it manually."
+  echo "Starting the API anyway."
 fi
 
 echo "Starting backend-api..."

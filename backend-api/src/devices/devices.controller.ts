@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 import { DeviceKeyGuard } from './device-key.guard';
 import { DevicesService } from './devices.service';
 import { AssignPlaylistDto, LinkDeviceDto, UpdateDeviceDto } from './dto/device.dto';
@@ -10,6 +12,10 @@ export class DevicesController {
 
   // ---- Player-facing endpoints ----
 
+  // Unauthenticated and creates a DB row per call, so it is rate limited
+  // per client IP to stop it being used to flood the devices table.
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('pairing/start')
   startPairing() {
     return this.devicesService.startPairing();
@@ -47,13 +53,15 @@ export class DevicesController {
     return this.devicesService.findOne(id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Post('link/:pairingCode')
   link(@Param('pairingCode') pairingCode: string, @Body() dto: LinkDeviceDto) {
     return this.devicesService.link(pairingCode, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Patch('admin/:id')
   update(@Param('id') id: string, @Body() dto: UpdateDeviceDto) {
     return this.devicesService.update(id, dto);
@@ -65,7 +73,8 @@ export class DevicesController {
     return this.devicesService.assignPlaylist(id, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Delete('admin/:id')
   remove(@Param('id') id: string) {
     return this.devicesService.remove(id);

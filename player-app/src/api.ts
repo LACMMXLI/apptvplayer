@@ -2,13 +2,25 @@ import type { DeviceCredentials, Playlist } from './types';
 
 declare global {
   interface Window {
-    __RUNTIME_CONFIG__?: { API_URL?: string; WS_URL?: string };
+    __RUNTIME_CONFIG__?: { API_URL?: string; WS_URL?: string; ADMIN_URL?: string };
   }
 }
 
 const API_URL =
   window.__RUNTIME_CONFIG__?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const ADMIN_URL = window.__RUNTIME_CONFIG__?.ADMIN_URL || import.meta.env.VITE_ADMIN_URL || '';
 const CREDENTIALS_KEY = 'signage.device.credentials';
+
+/**
+ * Link encoded in the pairing screen's QR code: opens the admin panel's
+ * Devices page with this screen's pairing code already filled in. Returns
+ * null when the admin panel URL isn't configured (or isn't a web URL), in
+ * which case no QR is shown.
+ */
+export function getAdminLinkUrl(pairingCode: string): string | null {
+  if (!/^https?:\/\//i.test(ADMIN_URL)) return null;
+  return `${ADMIN_URL.replace(/\/+$/, '')}/devices?code=${encodeURIComponent(pairingCode)}`;
+}
 
 /**
  * Thrown when the backend rejects the device's stored credentials (401).

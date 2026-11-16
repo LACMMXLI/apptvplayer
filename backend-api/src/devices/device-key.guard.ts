@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { DeviceAuthService } from '../device-auth/device-auth.service';
 
 /**
  * Authenticates player requests using the long-lived device key issued
@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class DeviceKeyGuard implements CanActivate {
-  constructor(private prisma: PrismaService) {}
+  constructor(private deviceAuth: DeviceAuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
@@ -18,8 +18,8 @@ export class DeviceKeyGuard implements CanActivate {
       throw new UnauthorizedException('Missing device credentials');
     }
 
-    const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
-    if (!device || device.deviceKey !== deviceKey) {
+    const device = await this.deviceAuth.authenticate(deviceId, deviceKey);
+    if (!device) {
       throw new UnauthorizedException('Invalid device credentials');
     }
 

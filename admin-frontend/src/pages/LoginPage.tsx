@@ -1,16 +1,20 @@
 import { FormEvent, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
+  // Set by ProtectedRoute. It is a router location object (path within this
+  // app), never an arbitrary URL, so it can't be used to redirect off-site.
+  const from = (useLocation().state as { from?: { pathname: string; search: string } } | null)?.from;
+  const destination = from ? `${from.pathname}${from.search}` : '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={destination} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -18,7 +22,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate('/');
+      navigate(destination, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {

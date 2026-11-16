@@ -53,7 +53,12 @@ export class PlaylistsService {
   }
 
   async removeSlide(playlistId: string, itemId: string) {
-    await this.prisma.playlistItem.delete({ where: { id: itemId } });
+    // Scoped to the playlist in the URL so an item id from another playlist
+    // can't be deleted through this route.
+    const { count } = await this.prisma.playlistItem.deleteMany({
+      where: { id: itemId, playlistId },
+    });
+    if (count === 0) throw new NotFoundException('Playlist item not found');
     await this.notifyDevices(playlistId);
     return { success: true };
   }

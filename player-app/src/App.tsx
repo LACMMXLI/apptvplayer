@@ -135,7 +135,7 @@ export default function App() {
   }
 
   function connectRealtime(creds: DeviceCredentials) {
-    connectDeviceSocket(creds.deviceId, {
+    connectDeviceSocket(creds, {
       onPlaylistUpdate: () => loadPlaylist(creds),
       onForceReload: () => window.location.reload(),
     });
@@ -163,7 +163,14 @@ export default function App() {
 
   return (
     <div className="app-root">
-      {offline && <div className="offline-badge">Sin conexión — mostrando contenido en caché</div>}
+      {offline && (
+        <div
+          className="offline-badge"
+          role="status"
+          aria-label="Sin conexión: mostrando contenido en caché"
+          title="Sin conexión: mostrando contenido en caché"
+        />
+      )}
       {phase === 'checking' && <div className="checking-screen">Iniciando…</div>}
       {phase === 'pairing' && credentials && <PairingScreen pairingCode={credentials.pairingCode} />}
       {phase === 'playing' && playlist && <PlayerScreen playlist={playlist} />}

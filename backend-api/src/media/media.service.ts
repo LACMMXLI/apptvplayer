@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { MediaType } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { detectMedia } from './media-validation';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -21,20 +21,30 @@ export class MediaService {
   }
 
   async upload(file: Express.Multer.File) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('No se recibió ningún archivo.');
+    }
+
+    // Trust the file's actual bytes, not the name/MIME type the client sent.
+    const detected = detectMedia(file.buffer);
+    if (!detected) {
+      throw new BadRequestException(
+        'El contenido del archivo no es una imagen o video válido (JPG, PNG, GIF, WEBP, MP4, WEBM).',
+      );
+    }
+
     const { bucket, objectKey, url } = await this.storage.upload(
       file.buffer,
-      file.originalname,
-      file.mimetype,
+      detected.extension,
+      detected.mimeType,
     );
-
-    const type: MediaType = file.mimetype.startsWith('video') ? 'VIDEO' : 'IMAGE';
 
     return this.prisma.mediaFile.create({
       data: {
         fileName: objectKey,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        type,
+        originalName: file.originalname.slice(0, 255),
+        mimeType: detected.mimeType,
+        type: detected.type,
         sizeBytes: file.size,
         bucket,
         objectKey,

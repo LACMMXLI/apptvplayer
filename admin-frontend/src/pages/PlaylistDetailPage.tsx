@@ -3,9 +3,11 @@ import { useParams } from 'react-router-dom';
 import type { Playlist, PlaylistItem, Slide } from '../types';
 import { playlistsApi, slidesApi } from '../api/endpoints';
 import PlaylistTimeline from '../components/PlaylistTimeline';
+import { useFeedback } from '../components/Feedback';
 
 export default function PlaylistDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { attempt } = useFeedback();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [allSlides, setAllSlides] = useState<Slide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,17 +16,19 @@ export default function PlaylistDetailPage() {
   function refresh() {
     if (!id) return;
     setLoading(true);
-    Promise.all([playlistsApi.get(id), slidesApi.list()])
-      .then(([p, s]) => {
+    attempt(() =>
+      Promise.all([playlistsApi.get(id), slidesApi.list()]).then(([p, s]) => {
         setPlaylist(p);
         setAllSlides(s);
-      })
-      .finally(() => setLoading(false));
+      }),
+    ).finally(() => setLoading(false));
   }
 
   useEffect(refresh, [id]);
 
-  if (loading || !playlist) return <p>Cargando…</p>;
+  if (!playlist) {
+    return loading ? <p>Cargando…</p> : <p className="empty-state">No se pudo cargar esta playlist.</p>;
+  }
 
   const items = [...playlist.items].sort((a, b) => a.order - b.order);
   const availableSlides = allSlides.filter(
@@ -33,29 +37,31 @@ export default function PlaylistDetailPage() {
 
   async function onAddSlide() {
     if (!id || !addingSlideId) return;
-    await playlistsApi.addSlide(id, addingSlideId);
+    await attempt(() => playlistsApi.addSlide(id, addingSlideId));
     setAddingSlideId('');
     refresh();
   }
 
   async function onRemoveItem(itemId: string) {
     if (!id) return;
-    await playlistsApi.removeItem(id, itemId);
+    await attempt(() => playlistsApi.removeItem(id, itemId));
     refresh();
   }
 
   async function onReorder(reordered: PlaylistItem[]) {
     if (!id || !playlist) return;
     setPlaylist({ ...playlist, items: reordered });
-    await playlistsApi.reorder(
-      id,
-      reordered.map((item, index) => ({ slideId: item.slideId, order: index })),
+    await attempt(() =>
+      playlistsApi.reorder(
+        id,
+        reordered.map((item, index) => ({ slideId: item.slideId, order: index })),
+      ),
     );
     refresh();
   }
 
   async function onDurationCommit(slideId: string, durationSecs: number) {
-    await slidesApi.update(slideId, { durationSecs });
+    await attempt(() => slidesApi.update(slideId, { durationSecs }));
     refresh();
   }
 
