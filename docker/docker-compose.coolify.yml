@@ -1,12 +1,12 @@
 # Digital Signage - production stack for Coolify (Docker Compose deployment)
 #
-# 4 independent, separately-scalable services + their own containers:
-#   postgres, minio, backend, admin-frontend, player-app
+# 5 independent, separately-scalable services + their own containers:
+#   postgres, rustfs, backend, admin-frontend, player-app
 #
 # All configuration is via environment variables — set them in the Coolify
 # UI (Environment Variables tab of this resource). No domain or secret is
 # hardcoded here. After first deploy, assign a public Domain to each of
-# backend / admin-frontend / player-app / minio from their own Configuration
+# backend / admin-frontend / player-app / rustfs from their own Configuration
 # tab in Coolify.
 
 services:
@@ -26,22 +26,22 @@ services:
       retries: 10
 
   minio:
-    # Docker Hub's minio/minio is no longer available (pulls fail with "repository
-    # does not exist"); the official image is published on quay.io. Pinned so a
-    # deploy never picks up a different MinIO release unannounced.
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # Keep the service name for the backend's S3_ENDPOINT while replacing the
+    # MinIO image, which no longer allows anonymous pulls from Docker Hub/Quay.
+    image: rustfs/rustfs:1.0.3
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    command: /data
     environment:
-      MINIO_ROOT_USER: ${S3_KEY}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET}
+      RUSTFS_ACCESS_KEY: ${S3_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET}
+      RUSTFS_ADDRESS: ':9000'
+      RUSTFS_CONSOLE_ADDRESS: ':9001'
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_VOLUMES: /data
     volumes:
-      - minio_data:/data
-    ports:
-      - '9000'
-      - '9001'
+      - rustfs_data:/data
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/health']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -111,4 +111,4 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  rustfs_data:

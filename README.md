@@ -6,9 +6,9 @@ tiempo real y soporte multi-sucursal.
 
 ## Arquitectura
 
-El sistema está dividido en **3 servicios independientes**, cada uno en su
-propio contenedor. No es un monolito: cada servicio se despliega, escala y
-reinicia por separado.
+En Coolify el sistema se despliega como **5 recursos independientes**:
+PostgreSQL, RustFS (S3), backend, admin-frontend y player-app. Cada recurso se
+despliega y reinicia por separado.
 
 ```
 /digital-signage
@@ -16,6 +16,7 @@ reinicia por separado.
   /backend-api      API REST + WebSockets (NestJS + Prisma + PostgreSQL)
   /player-app       SPA ultra ligera tipo kiosk para las TVs (React + Vite)
   /docker           docker-compose.yml para desarrollo local
+  /docker/coolify   un archivo Compose por recurso de producción
   .env.example      Variables de entorno para docker-compose
   COOLIFY.md        Guía de despliegue en Coolify
 ```
@@ -27,7 +28,7 @@ reinicia por separado.
 └──────────────────┘  REST  └───────┬────────────┘ device └──────────────────┘
                                      │   key
                           ┌──────────┴──────────┐
-                          │  PostgreSQL │ MinIO  │
+                          │ PostgreSQL  │ RustFS │
                           └─────────────────────┘
 ```
 
@@ -35,7 +36,7 @@ reinicia por separado.
   playlists/devices, vinculación de pantallas por código, y un gateway
   WebSocket (Socket.io) que empuja `playlist_update` / `force_reload` a cada
   pantalla en tiempo real.
-- **admin-frontend**: dashboard, gestión de media (subida a S3/MinIO), editor
+- **admin-frontend**: dashboard, gestión de media (subida a S3/RustFS), editor
   de slides con preview en vivo, editor de playlists con drag & drop,
   vinculación y asignación de pantallas por sucursal.
 - **player-app**: al iniciar, si la pantalla no está vinculada muestra un
@@ -46,12 +47,12 @@ reinicia por separado.
 ## Requisitos
 
 - Node.js 20+
-- Docker y Docker Compose (para Postgres/MinIO/Redis locales, o para
+- Docker y Docker Compose (para Postgres/RustFS/Redis locales, o para
   contenerizar todo el stack)
 
 ## Desarrollo local
 
-1. Levanta la infraestructura (Postgres, MinIO, Redis) y el backend:
+1. Levanta la infraestructura (Postgres, RustFS, Redis) y el backend:
 
    ```bash
    cp .env.example .env
@@ -68,10 +69,9 @@ reinicia por separado.
    npm run seed
    ```
 
-   El seed crea un usuario admin (`admin@restaurant.com` / `Admin123!` por
-   defecto, configurable con `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`),
-   2 sucursales, media/slides de ejemplo, una playlist y una pantalla ya
-   vinculada con el código `DEMO01`.
+   El seed crea datos de demostración, pero no crea usuarios. Crea el primer
+   administrador manualmente desde el backend con `npm run admin:create`;
+   la contraseña se solicita sin mostrarse y se guarda con hash.
 
 3. Corre el admin y el player en modo dev (hot reload):
 
@@ -97,7 +97,7 @@ reinicia por separado.
 docker compose -f docker/docker-compose.yml --profile full up -d --build
 ```
 
-Esto construye y corre los 3 servicios con sus Dockerfiles de producción
+Esto construye y corre los 3 servicios de aplicación con sus Dockerfiles
 (admin en `:8081`, player en `:8082`, backend en `:3000`).
 
 ## Variables de entorno
@@ -110,7 +110,7 @@ Esto construye y corre los 3 servicios con sus Dockerfiles de producción
 | `JWT_SECRET` | Secreto para firmar tokens del panel admin |
 | `JWT_EXPIRES_IN` | Expiración del token (ej. `7d`) |
 | `CORS_ORIGINS` | Orígenes permitidos, separados por coma |
-| `S3_ENDPOINT`, `S3_PORT`, `S3_USE_SSL` | Endpoint del storage S3-compatible (MinIO local o Cloudflare R2/otro en producción) |
+| `S3_ENDPOINT`, `S3_PORT`, `S3_USE_SSL` | Endpoint del storage S3-compatible (RustFS local o Cloudflare R2/otro en producción) |
 | `S3_KEY`, `S3_SECRET` | Credenciales del storage |
 | `S3_BUCKET` | Bucket de media |
 | `S3_PUBLIC_URL` | URL pública base para construir las URLs de los archivos |

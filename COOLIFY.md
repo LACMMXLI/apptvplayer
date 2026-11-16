@@ -6,116 +6,87 @@ ejemplo `midominio.com`.
 
 URLs de ejemplo usadas abajo:
 
-- Admin: `https://admin.midominio.com`
-- API: `https://api.midominio.com`
-- Player: `https://tv.midominio.com`
-- MinIO (opcional exponer): `https://storage.midominio.com`
+- Admin: `https://signage.fatboymexicali.com`
+- API: `https://api-signage.fatboymexicali.com`
+- Player: `https://tv.fatboymexicali.com`
+- RustFS S3: `https://storage-signage.fatboymexicali.com`
 
 Todos los dominios son configurables — nada está hardcodeado en el código;
 sólo se cambian variables de entorno.
 
 ## 0. Antes de empezar
 
-- Apunta los registros DNS (tipo `A`, o un wildcard `*`) de `admin`, `api`,
-  `tv` (y `storage` si vas a exponer MinIO) hacia la IP del servidor donde
+- Apunta los registros DNS (tipo `A`, o un wildcard `*`) de `signage`, `api-signage`,
+  `tv` y `storage-signage` hacia la IP del servidor donde
   corre Coolify.
 - Sube este repositorio a un remoto Git (GitHub/GitLab/Gitea) accesible desde
   Coolify.
 
-## 1. Crear el proyecto
+## 1. Usa el proyecto existente
 
-1. En Coolify: **Projects → New Project** → nómbralo `digital-signage`.
-2. Dentro del proyecto, crea un **Environment** (ej. `production`).
+Usa el proyecto `apptv` y su entorno `production` existentes en Coolify.
 
-## 2. Desplegar el stack con Docker Compose
+## 2. Desplegar como cinco recursos independientes
 
-Los 4 servicios (Postgres, MinIO, backend, admin-frontend, player-app) están
-definidos en [`docker/docker-compose.coolify.yml`](docker/docker-compose.coolify.yml)
-— cada uno sigue siendo un contenedor independiente (escalable/reiniciable
-por separado), pero se despliegan juntos como un solo recurso versionado en
-Git, en vez de crearse uno por uno a mano en la UI.
+El proyecto `apptv` usa un recurso Coolify por servicio: PostgreSQL, RustFS
+(S3), backend, admin-frontend y player-app. Las definiciones de Compose de un
+servicio están en [`docker/coolify/`](docker/coolify/). Cada recurso se puede
+desplegar o reiniciar por separado; las cinco definiciones se conectan a la
+red compartida `coolify` y no publican puertos de base de datos ni de API S3
+directamente en el host.
 
-1. **+ New Resource → Public Repository** (o Private Repository si el repo no
-   es público) → pega la URL del repo, rama `main`.
-2. En "Build Pack" selecciona **Docker Compose**.
-3. En "Docker Compose Location" pon `docker/docker-compose.coolify.yml`.
-4. Coolify detecta los 5 servicios del archivo y crea un recurso con una
-   sub-tarjeta de configuración por servicio.
-5. Ve a **Environment Variables** del recurso y define (ver
-   [`docker/.env.coolify.example`](docker/.env.coolify.example) como
-   referencia):
+En el entorno `production`, crea cinco recursos desde **+ New Resource**:
 
-   ```
-   POSTGRES_USER=signage
-   POSTGRES_PASSWORD=<genera un valor aleatorio fuerte>
-   POSTGRES_DB=signage
+| Recurso | Tipo / archivo Compose | Puerto interno | Dominio |
+| --- | --- | ---: | --- |
+| `apptv-postgres` | Docker Compose · `docker/coolify/postgres.yml` | 5432 | Ninguno |
+| `apptv-rustfs` | Docker Compose · `docker/coolify/rustfs.yml` | 9000 | `storage-signage.fatboymexicali.com` |
+| `apptv-backend` | Docker Compose · `docker/coolify/backend.yml` | 3000 | `api-signage.fatboymexicali.com` |
+| `apptv-admin` | Docker Compose · `docker/coolify/admin-frontend.yml` | 8080 | `signage.fatboymexicali.com` |
+| `apptv-player` | Docker Compose · `docker/coolify/player-app.yml` | 8080 | `tv.fatboymexicali.com` |
 
-   S3_KEY=<access key para MinIO>
-   S3_SECRET=<genera un valor aleatorio fuerte>
-   S3_REGION=us-east-1
-   S3_BUCKET=signage-media
-   S3_PUBLIC_URL=https://storage-signage.midominio.com
+Para cada recurso de Compose, conecta el repositorio `LACMMXLI/apptvplayer`,
+rama `main`, y escribe la ruta mostrada en la tabla. Mantén todos los recursos
+en el mismo servidor de Coolify. No asignes un dominio ni publiques un puerto
+de host para PostgreSQL; el backend lo alcanza como `apptv-postgres:5432`.
+El backend alcanza RustFS como `apptv-rustfs:9000` por la red compartida.
 
-   JWT_SECRET=<genera un secreto largo y aleatorio>
-   JWT_EXPIRES_IN=7d
-   CORS_ORIGINS=https://admin.midominio.com,https://tv.midominio.com
+Coolify requiere que cada recurso de Compose pueda unirse a la red compartida
+`coolify`; revisa **Connect to predefined network** si la pantalla de
+configuración lo ofrece. No uses `localhost`, el dominio público ni puertos
+publicados para las conexiones entre recursos. Si el servidor usa otro nombre
+para su red compartida, ajusta `name:` en los cinco archivos para que coincida.
 
-   API_URL=https://api.midominio.com/api
-   WS_URL=https://api.midominio.com
-   ```
+Define las variables de [`docker/.env.coolify.example`](docker/.env.coolify.example)
+en el recurso indicado. Genera una contraseña PostgreSQL hexadecimal para que
+la URL de conexión no requiera escape; usa claves nuevas para RustFS y el JWT.
+No configures credenciales de administrador en Coolify. Tras desplegar el
+backend, abre su terminal en Coolify y ejecuta `npm run admin:create`. El
+comando pide nombre, correo y contraseña de forma interactiva; la contraseña
+no se muestra y se guarda como hash. La base de datos y el almacenamiento de RustFS usan volúmenes
+nuevos; el recurso anterior y sus volúmenes MinIO/Postgres se conservan durante
+la comprobación y se pueden borrar después manualmente.
 
-   > Si vas a usar Cloudflare R2 u otro S3 externo en vez de MinIO, quita el
-   > servicio `minio` del compose (o simplemente no lo uses) y en su lugar
-   > apunta `S3_*` a las credenciales de tu proveedor — `StorageService` habla
-   > el protocolo S3 estándar sin cambios de código.
-
-6. **Deploy**. Coolify construye las 5 imágenes (usa los `Dockerfile` de cada
-   carpeta) y las levanta en la misma red interna del proyecto — se
-   descubren entre sí por el nombre del servicio (`postgres`, `minio`,
-   `backend`). El backend sincroniza el schema con `prisma db push`
-   automáticamente al iniciar (no hay todavía un historial de migraciones
-   committeado — genera uno localmente con `npm run prisma:migrate` contra
-   una base real cuando quieras pasar a `prisma migrate deploy`).
-7. Asigna un **Domain** a cada servicio que necesita ser público, desde la
-   tarjeta de ese servicio dentro del recurso (Configuration → Domains):
-
-   | Servicio | Dominio | Puerto interno |
-   | --- | --- | --- |
-   | `backend` | `api.midominio.com` | `3000` |
-   | `admin-frontend` | `admin.midominio.com` | `8080` |
-   | `player-app` | `tv.midominio.com` | `8080` |
-   | `minio` | `storage.midominio.com` (opcional) | `9000` |
-
-   Coolify emite el certificado SSL automáticamente (Let's Encrypt vía el
-   proxy Traefik integrado) para cada dominio asignado. Postgres no necesita
-   dominio — sólo lo alcanza el backend por red interna.
-8. (Opcional) corre el seed de datos de ejemplo desde la terminal del
-   contenedor `backend` en Coolify:
-
-   ```bash
-   npm run seed
-   ```
+Asigna los dominios HTTPS a los recursos nuevos después de desplegarlos. La
+ruta pública `storage-signage.fatboymexicali.com` debe ir al puerto 9000 de
+RustFS; deja el puerto 9001 de la consola sin dominio. El backend corre
+`prisma db push` al inicio, de forma idempotente. El seed no crea cuentas de
+usuario.
 
 En cada TV, abre un navegador en modo kiosk apuntando a
-`https://tv.midominio.com` (ej. Chromium con `--kiosk --noerrdialogs
---disable-infobars --incognito`).
-
-> **Alternativa:** si prefieres crear cada servicio como un recurso separado
-> en la UI de Coolify (una Database de PostgreSQL nativa de Coolify + 3
-> Applications con Dockerfile) en vez de un solo stack Docker Compose, el
-> resultado final es equivalente — usa los mismos `Dockerfile` de cada
-> carpeta y las mismas variables de entorno listadas arriba.
+`https://tv.fatboymexicali.com` (por ejemplo Chromium con `--kiosk
+--noerrdialogs --disable-infobars --incognito`).
 
 ## 7. Redes y proxy inverso
 
 - Coolify ya corre Traefik (o Nginx, según versión) como reverse proxy y
   gestiona el certificado SSL de cada dominio automáticamente al asignarlo
   en la app.
-- El backend, Postgres y MinIO se comunican por la **red interna** del
-  proyecto en Coolify usando sus nombres de servicio — no necesitas exponer
-  esos puertos a internet salvo que quieras acceso externo a MinIO.
+- Los cinco recursos comparten la red interna `coolify`. Postgres y el puerto
+  de consola RustFS no llevan dominio; sólo la API S3 de RustFS usa el dominio
+  de almacenamiento.
 - El WebSocket (`/realtime`) viaja por el mismo dominio/puerto que la API
-  (`api.midominio.com`), sobre `wss://` automáticamente una vez que el
+  (`api-signage.fatboymexicali.com`), sobre `wss://` automáticamente una vez que el
   dominio tiene SSL — no requiere configuración extra en Traefik más allá
   del proxy HTTP estándar (Traefik soporta upgrade a WebSocket por defecto).
 
@@ -123,21 +94,20 @@ En cada TV, abre un navegador en modo kiosk apuntando a
 
 - Cada pantalla (`device`) se vincula a una `branch` y a una `playlist`
   independiente — puedes tener distintas playlists por sucursal o por TV.
-- Los 3 servicios escalan de forma independiente: en Coolify puedes subir
-  réplicas del backend si tienes muchas pantallas conectadas por WebSocket
-  (nota: con más de una réplica del backend necesitarás sticky sessions o un
-  adaptador de Socket.io con Redis para que los eventos lleguen a todas las
-  instancias — el servicio Redis ya está incluido en el stack para este caso).
+- Los servicios de aplicación escalan de forma independiente. Para varias
+  réplicas del backend necesitarás sticky sessions y configurar un adaptador
+  Socket.io con Redis; Redis sólo está incluido en el Compose local.
 - Admin y player son estáticos servidos por Nginx — escalan trivialmente
   agregando réplicas en Coolify.
 
 ## 9. Checklist post-deploy
 
-- [ ] `https://api.midominio.com/api/health` responde `{ status: "ok" }`
-- [ ] Login en `https://admin.midominio.com` con el usuario del seed
+- [ ] `https://api-signage.fatboymexicali.com/api/health` responde `{ status: "ok" }`
+- [ ] Crear el primer administrador desde la terminal del backend y verificar
+      el acceso en `https://signage.fatboymexicali.com`
 - [ ] Subir un archivo de media desde el admin y verificar que se guarda en
-      el bucket S3/MinIO configurado
-- [ ] Abrir `https://tv.midominio.com`, ver el código de pairing, vincularlo
+      el bucket S3 de RustFS
+- [ ] Abrir `https://tv.fatboymexicali.com`, ver el código de pairing, vincularlo
       desde el admin y confirmar que la pantalla carga la playlist sin
       recargar manualmente
 - [ ] Editar la playlist asignada a esa pantalla y confirmar que el cambio

@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-signage}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-signage}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-signage}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      coolify:
+        aliases:
+          - apptv-postgres
+
+volumes:
+  postgres_data:
+
+networks:
+  coolify:
+    external: true
+    name: coolify

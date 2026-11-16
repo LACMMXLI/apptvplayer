@@ -1,0 +1,31 @@
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.3
+    restart: unless-stopped
+    command: /data
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_KEY:?Set S3_KEY}
+      RUSTFS_SECRET_KEY: ${S3_SECRET:?Set S3_SECRET}
+      RUSTFS_ADDRESS: ':9000'
+      RUSTFS_CONSOLE_ADDRESS: ':9001'
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_VOLUMES: /data
+    volumes:
+      - rustfs_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      coolify:
+        aliases:
+          - apptv-rustfs
+
+volumes:
+  rustfs_data:
+
+networks:
+  coolify:
+    external: true
+    name: coolify

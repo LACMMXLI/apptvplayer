@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "admin:create": "node scripts/create-admin.js",
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {

@@ -1,0 +1,19 @@
+services:
+  admin-frontend:
+    build:
+      context: admin-frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      API_URL: ${API_URL:?Set API_URL}
+    expose:
+      - '8080'
+    networks:
+      coolify:
+        aliases:
+          - apptv-admin
+
+networks:
+  coolify:
+    external: true
+    name: coolify
