@@ -26,7 +26,10 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    # Docker Hub's minio/minio is no longer available (pulls fail with "repository
+    # does not exist"); the official image is published on quay.io. Pinned so a
+    # deploy never picks up a different MinIO release unannounced.
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
